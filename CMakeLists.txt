@@ -57,4 +57,7 @@ SOAPY_SDR_MODULE_UTIL(
     LIBRARIES
         ${Sidekiq_LIBRARIES}
         ${OTHER_LIBS}
+        /usr/lib/epiq/libusb-1.0.so
+        /usr/lib/epiq/libglib-2.0.so
+        -lrt
 )

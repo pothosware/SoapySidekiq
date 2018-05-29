@@ -1,11 +1,10 @@
 
 #include "SoapySidekiq.hpp"
 
+std::vector<SoapySDR::Kwargs> SoapySidekiq::sidekiq_devices;
+
 SoapySidekiq::SoapySidekiq(const SoapySDR::Kwargs &args)
 {
-
-
-
     rx_sampleRate = 2048000;
     rx_centerFrequency = 100000000;
 
