@@ -1,8 +1,8 @@
 #pragma once
 
 #include <SoapySDR/Device.hpp>
-#include <SoapySDR/Logger.h>
-#include <SoapySDR/Types.h>
+#include <SoapySDR/Logger.hpp>
+#include <SoapySDR/Types.hpp>
 #include <sidekiq_api.h>
 #include <stdexcept>
 #include <thread>
@@ -148,6 +148,16 @@ public:
      * Utility
      ******************************************************************/
 
+
+
+    /*******************************************************************
+     * Sensor API
+     ******************************************************************/
+    std::vector<std::string> listSensors(void) const;
+    SoapySDR::ArgInfo getSensorInfo(const std::string &key) const;
+    std::string readSensor(const std::string &key) const;
+    std::vector<std::string> listSensors(const int direction, const size_t channel) const;
+    std::string readSensor(const int direction, const size_t channel, const std::string &key) const;
 
     /*******************************************************************
      * Settings API

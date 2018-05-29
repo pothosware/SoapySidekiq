@@ -54,6 +54,7 @@ SOAPY_SDR_MODULE_UTIL(
         Registation.cpp
         Settings.cpp
         Streaming.cpp
+        Sensor.cpp
     LIBRARIES
         ${Sidekiq_LIBRARIES}
         ${OTHER_LIBS}
