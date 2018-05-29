@@ -49,7 +49,7 @@ static std::vector<SoapySDR::Kwargs> findSidekiq(const SoapySDR::Kwargs &args)
             {
                 continue;
             }
-            SoapySDR_logf(SOAPY_SDR_DEBUG, "Found device by index %s", devInfo.at("rtl").c_str());
+            SoapySDR_logf(SOAPY_SDR_DEBUG, "Found device by card %s", devInfo.at("card").c_str());
         }
         else if (args.count("serial") != 0)
         {

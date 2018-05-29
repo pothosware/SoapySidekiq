@@ -5,11 +5,15 @@ std::vector<SoapySDR::Kwargs> SoapySidekiq::sidekiq_devices;
 
 SoapySidekiq::SoapySidekiq(const SoapySDR::Kwargs &args)
 {
+    //rx defaults
     rx_sample_rate = 2048000;
+    rx_bandwidth = 2048000;
     rx_center_frequency = 100000000;
-    tx_sample_rate = 2048000;
-    tx_center_frequency = 100000000;
 
+    //tx defaults
+    tx_sample_rate = 2048000;
+    tx_bandwidth = 2048000;
+    tx_center_frequency = 100000000;
 
     numBuffers = DEFAULT_NUM_BUFFERS;
     bufferLength = DEFAULT_BUFFER_LENGTH;
@@ -235,7 +239,7 @@ double SoapySidekiq::getFrequency(const int direction, const size_t channel, con
     if (direction == SOAPY_SDR_RX && name == "RF") {
         uint64_t freq;
         double tuned_freq;
-        skiq_read_rx_LO_freq(card, rx_hdl,&freq, &tuned_freq);
+        skiq_read_rx_LO_freq(card, rx_hdl, &freq, &tuned_freq);
         return double(freq);
     }
 

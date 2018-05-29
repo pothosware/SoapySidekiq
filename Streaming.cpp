@@ -19,7 +19,6 @@ std::string SoapySidekiq::getNativeStreamFormat(const int direction, const size_
 
 SoapySDR::ArgInfoList SoapySidekiq::getStreamArgsInfo(const int direction, const size_t channel) const {
 
-
     SoapySDR::ArgInfoList streamArgs;
 
     SoapySDR::ArgInfo bufflenArg;
@@ -111,6 +110,271 @@ void SoapySidekiq::rx_callback(unsigned char *buf, uint32_t len)
 SoapySDR::Stream *SoapySidekiq::setupStream(const int direction, const std::string &format, const std::vector<size_t> &channels, const SoapySDR::Kwargs &args)
 {
 
+#include <SoapySDR/Device.hpp>
+#include <SoapySDR/Formats.h>
+#include <SoapySDR/Logger.hpp>
+#include <SoapySDR/Logger.h>
+
+#include <stdio.h> //printf
+#include <stdlib.h> //free
+#include <complex>
+#include <cstdio>
+#include <cstdlib>
+#include <string>
+#include <iostream>
+#include <iostream>
+
+
+/***********************************************************************
+ * ANSI terminal colors for default logger
+ **********************************************************************/
+#define ANSI_COLOR_RED     "\x1b[31m"
+#define ANSI_COLOR_GREEN   "\x1b[32m"
+#define ANSI_COLOR_YELLOW  "\x1b[33m"
+#define ANSI_COLOR_BLUE    "\x1b[34m"
+#define ANSI_COLOR_MAGENTA "\x1b[35m"
+#define ANSI_COLOR_CYAN    "\x1b[36m"
+#define ANSI_COLOR_RESET   "\x1b[0m"
+#define ANSI_COLOR_BOLD    "\x1b[1m"
+
+
+    void defaultLogHandler(const SoapySDRLogLevel logLevel, const char *message)
+    {
+        switch (logLevel)
+        {
+            case SOAPY_SDR_FATAL:    fprintf(stdout, ANSI_COLOR_BOLD ANSI_COLOR_RED "[FATAL] %s" ANSI_COLOR_RESET "\n", message); break;
+            case SOAPY_SDR_CRITICAL: fprintf(stdout, ANSI_COLOR_BOLD ANSI_COLOR_RED "[CRITICAL] %s" ANSI_COLOR_RESET "\n", message); break;
+            case SOAPY_SDR_ERROR:    fprintf(stdout, ANSI_COLOR_BOLD ANSI_COLOR_RED "[ERROR] %s" ANSI_COLOR_RESET "\n", message); break;
+            case SOAPY_SDR_WARNING:  fprintf(stdout, ANSI_COLOR_BOLD ANSI_COLOR_YELLOW "[WARNING] %s" ANSI_COLOR_RESET "\n", message); break;
+            case SOAPY_SDR_NOTICE:   fprintf(stdout, ANSI_COLOR_GREEN "[NOTICE] %s" ANSI_COLOR_RESET "\n", message); break;
+            case SOAPY_SDR_INFO:     fprintf(stdout, "[INFO] %s\n", message); break;
+            case SOAPY_SDR_DEBUG:    fprintf(stdout, "[DEBUG] %s\n", message); break;
+            case SOAPY_SDR_TRACE:    fprintf(stdout, "[TRACE] %s\n", message); break;
+            case SOAPY_SDR_SSI:      fputs(message, stderr); fflush(stderr); break;
+        }
+    }
+
+    int main (void)
+    {
+        int i = 0;
+        SoapySDR::setLogLevel(SOAPY_SDR_DEBUG);
+
+// SoapySDR::registerLogHandler(defaultLogHandler);
+
+        //enumerate devices
+        // SoapySDR::KwargsList results = SoapySDR::Device::enumerate ("driver=rtlsdr");
+        SoapySDR::KwargsList results = SoapySDR::Device::enumerate ("");
+        std::cout << "size " << results.size () << std::endl;
+        for (SoapySDR::KwargsList::iterator it = results.begin (); it != results.end (); ++it)
+        {
+            std::cout << "(*it).size() " << (*it).size () << std::endl;
+
+            for (SoapySDR::Kwargs::iterator it2 = (*it).begin (); it2 != (*it).end ();
+                 ++it2)
+                std::cout << it2->first << " => " << it2->second << '\n';
+
+        }
+
+
+        // SoapySDR::Device* sdr = SoapySDR::Device::make("driver=rtlsdr");
+        SoapySDR::Device* sdr = SoapySDR::Device::make("");
+
+
+        //query device info
+        std::vector<std::string> names = sdr->listAntennas(SOAPY_SDR_RX, 0);
+        std::cout << "Rx antennas: " ;
+        for (std::vector<std::string>::iterator it = names.begin (); it != names.end (); ++it){
+            std::cout << *it << std::endl;
+        }
+
+        names = sdr->listGains(SOAPY_SDR_RX, 0);
+        std::cout << "Rx gains: " ;
+        for (std::vector<std::string>::iterator it = names.begin (); it != names.end (); ++it){
+            std::cout << *it << std::endl;
+        }
+
+        SoapySDR::RangeList ranges = sdr->getFrequencyRange(SOAPY_SDR_RX, 0);
+        for (SoapySDR::RangeList::iterator it = ranges.begin (); it != ranges.end (); ++it){
+            std::cout << "[" << (*it).minimum() << " Hz -> " << (*it).maximum()  << " Hz]," <<std::endl;
+        }
+
+        sdr->setSampleRate(SOAPY_SDR_RX, 0, 1e6);
+        sdr->setFrequency(SOAPY_SDR_RX, 0, 912.3e6);
+#include <SoapySDR/Device.hpp>
+#include <SoapySDR/Formats.h>
+#include <SoapySDR/Logger.hpp>
+#include <SoapySDR/Logger.h>
+
+#include <stdio.h> //printf
+#include <stdlib.h> //free
+#include <complex>
+#include <cstdio>
+#include <cstdlib>
+#include <string>
+#include <iostream>
+#include <iostream>
+
+
+/***********************************************************************
+ * ANSI terminal colors for default logger
+ **********************************************************************/
+#define ANSI_COLOR_RED     "\x1b[31m"
+#define ANSI_COLOR_GREEN   "\x1b[32m"
+#define ANSI_COLOR_YELLOW  "\x1b[33m"
+#define ANSI_COLOR_BLUE    "\x1b[34m"
+#define ANSI_COLOR_MAGENTA "\x1b[35m"
+#define ANSI_COLOR_CYAN    "\x1b[36m"
+#define ANSI_COLOR_RESET   "\x1b[0m"
+#define ANSI_COLOR_BOLD    "\x1b[1m"
+
+
+        void defaultLogHandler(const SoapySDRLogLevel logLevel, const char *message)
+        {
+            switch (logLevel)
+            {
+                case SOAPY_SDR_FATAL:    fprintf(stdout, ANSI_COLOR_BOLD ANSI_COLOR_RED "[FATAL] %s" ANSI_COLOR_RESET "\n", message); break;
+                case SOAPY_SDR_CRITICAL: fprintf(stdout, ANSI_COLOR_BOLD ANSI_COLOR_RED "[CRITICAL] %s" ANSI_COLOR_RESET "\n", message); break;
+                case SOAPY_SDR_ERROR:    fprintf(stdout, ANSI_COLOR_BOLD ANSI_COLOR_RED "[ERROR] %s" ANSI_COLOR_RESET "\n", message); break;
+                case SOAPY_SDR_WARNING:  fprintf(stdout, ANSI_COLOR_BOLD ANSI_COLOR_YELLOW "[WARNING] %s" ANSI_COLOR_RESET "\n", message); break;
+                case SOAPY_SDR_NOTICE:   fprintf(stdout, ANSI_COLOR_GREEN "[NOTICE] %s" ANSI_COLOR_RESET "\n", message); break;
+                case SOAPY_SDR_INFO:     fprintf(stdout, "[INFO] %s\n", message); break;
+                case SOAPY_SDR_DEBUG:    fprintf(stdout, "[DEBUG] %s\n", message); break;
+                case SOAPY_SDR_TRACE:    fprintf(stdout, "[TRACE] %s\n", message); break;
+                case SOAPY_SDR_SSI:      fputs(message, stderr); fflush(stderr); break;
+            }
+        }
+
+        int main (void)
+        {
+            int i = 0;
+            SoapySDR::setLogLevel(SOAPY_SDR_DEBUG);
+
+// SoapySDR::registerLogHandler(defaultLogHandler);
+
+            //enumerate devices
+            // SoapySDR::KwargsList results = SoapySDR::Device::enumerate ("driver=rtlsdr");
+            SoapySDR::KwargsList results = SoapySDR::Device::enumerate ("");
+            std::cout << "size " << results.size () << std::endl;
+            for (SoapySDR::KwargsList::iterator it = results.begin (); it != results.end (); ++it)
+            {
+                std::cout << "(*it).size() " << (*it).size () << std::endl;
+
+                for (SoapySDR::Kwargs::iterator it2 = (*it).begin (); it2 != (*it).end ();
+                     ++it2)
+                    std::cout << it2->first << " => " << it2->second << '\n';
+
+            }
+
+
+            // SoapySDR::Device* sdr = SoapySDR::Device::make("driver=rtlsdr");
+            SoapySDR::Device* sdr = SoapySDR::Device::make("");
+
+
+            //query device info
+            std::vector<std::string> names = sdr->listAntennas(SOAPY_SDR_RX, 0);
+            std::cout << "Rx antennas: " ;
+            for (std::vector<std::string>::iterator it = names.begin (); it != names.end (); ++it){
+                std::cout << *it << std::endl;
+            }
+
+            names = sdr->listGains(SOAPY_SDR_RX, 0);
+            std::cout << "Rx gains: " ;
+            for (std::vector<std::string>::iterator it = names.begin (); it != names.end (); ++it){
+                std::cout << *it << std::endl;
+            }
+
+            SoapySDR::RangeList ranges = sdr->getFrequencyRange(SOAPY_SDR_RX, 0);
+            for (SoapySDR::RangeList::iterator it = ranges.begin (); it != ranges.end (); ++it){
+                std::cout << "[" << (*it).minimum() << " Hz -> " << (*it).maximum()  << " Hz]," <<std::endl;
+            }
+
+            sdr->setSampleRate(SOAPY_SDR_RX, 0, 1e6);
+            sdr->setFrequency(SOAPY_SDR_RX, 0, 912.3e6);
+
+
+            SoapySDR::Stream *rxStream = sdr->setupStream(SOAPY_SDR_RX, SOAPY_SDR_CF32);
+
+            sdr->activateStream(rxStream,0, 0, 0);
+
+            std::complex<float> buff[1024*2];
+
+            //receive some samples
+            for (size_t i = 0; i < 10; i++)
+            {
+                void *buffs[] = {buff}; //array of buffers
+                int flags; //flags set by receive operation
+                long long timeNs; //timestamp for receive buffer
+
+                int ret = sdr->readStream(rxStream, (void * const*)buffs, 1024*2, flags, timeNs, 100000);
+                printf("ret=%d, flags=%d, timeNs=%lld\n", ret, flags, timeNs);
+
+                void *buff0 = buffs[0];
+                float *ftarget = (float *) buff0;
+                //int8_t *itarget = (int8_t *) buff0;
+                if(ret > 0){
+                    for (size_t i = 0; i < ret; i++)
+                    {
+
+                        //  std::cout << ftarget[i * 2] << " - " << ftarget[i * 2 + 1]  <<std::endl;
+                    }
+                }
+
+
+
+            }
+
+
+            //shutdown the stream
+            sdr->deactivateStream(rxStream, 0, 0); //stop streaming
+            sdr->closeStream(rxStream);
+
+            SoapySDR::Device::unmake(sdr);
+
+            printf ("Done\n");
+            return EXIT_SUCCESS;
+        }
+
+        SoapySDR::Stream *rxStream = sdr->setupStream(SOAPY_SDR_RX, SOAPY_SDR_CF32);
+
+        sdr->activateStream(rxStream,0, 0, 0);
+
+        std::complex<float> buff[1024*2];
+
+        //receive some samples
+        for (size_t i = 0; i < 10; i++)
+        {
+            void *buffs[] = {buff}; //array of buffers
+            int flags; //flags set by receive operation
+            long long timeNs; //timestamp for receive buffer
+
+            int ret = sdr->readStream(rxStream, (void * const*)buffs, 1024*2, flags, timeNs, 100000);
+            printf("ret=%d, flags=%d, timeNs=%lld\n", ret, flags, timeNs);
+
+            void *buff0 = buffs[0];
+            float *ftarget = (float *) buff0;
+            //int8_t *itarget = (int8_t *) buff0;
+            if(ret > 0){
+                for (size_t i = 0; i < ret; i++)
+                {
+
+                    //  std::cout << ftarget[i * 2] << " - " << ftarget[i * 2 + 1]  <<std::endl;
+                }
+            }
+
+
+
+        }
+
+
+        //shutdown the stream
+        sdr->deactivateStream(rxStream, 0, 0); //stop streaming
+        sdr->closeStream(rxStream);
+
+        SoapySDR::Device::unmake(sdr);
+
+        printf ("Done\n");
+        return EXIT_SUCCESS;
+    }
 
     //check the channel configuration
     if (channels.size() > 1 or (channels.size() > 0 and channels.at(0) != 0))
@@ -202,6 +466,7 @@ int SoapySidekiq::deactivateStream(SoapySDR::Stream *stream, const int flags, co
 {
     if (flags != 0) return SOAPY_SDR_NOT_SUPPORTED;
 
+    skiq_stop_rx_streaming(card, rx_hdl);
 
     return 0;
 }
@@ -274,13 +539,7 @@ int SoapySidekiq::getDirectAccessBufferAddrs(SoapySDR::Stream *stream, const siz
     return 0;
 }
 
-int SoapySidekiq::acquireReadBuffer(
-        SoapySDR::Stream *stream,
-        size_t &handle,
-        const void **buffs,
-        int &flags,
-        long long &timeNs,
-        const long timeoutUs)
+int SoapySidekiq::acquireReadBuffer(SoapySDR::Stream *stream, size_t &handle, const void **buffs, int &flags, long long &timeNs, const long timeoutUs)
 {
     //reset is issued by various settings
     //to drain old data out of the queue
