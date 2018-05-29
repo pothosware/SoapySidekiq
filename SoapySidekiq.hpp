@@ -54,21 +54,11 @@ public:
 
     size_t getStreamMTU(SoapySDR::Stream *stream) const;
 
-    int activateStream(
-            SoapySDR::Stream *stream,
-            const int flags = 0,
-            const long long timeNs = 0,
-            const size_t numElems = 0);
+    int activateStream(SoapySDR::Stream *stream, const int flags = 0, const long long timeNs = 0, const size_t numElems = 0);
 
     int deactivateStream(SoapySDR::Stream *stream, const int flags = 0, const long long timeNs = 0);
 
-    int readStream(
-            SoapySDR::Stream *stream,
-            void * const *buffs,
-            const size_t numElems,
-            int &flags,
-            long long &timeNs,
-            const long timeoutUs = 100000);
+    int readStream(SoapySDR::Stream *stream, void * const *buffs, const size_t numElems, int &flags, long long &timeNs, const long timeoutUs = 100000);
 
     /*******************************************************************
      * Direct buffer access API
@@ -78,17 +68,9 @@ public:
 
     int getDirectAccessBufferAddrs(SoapySDR::Stream *stream, const size_t handle, void **buffs);
 
-    int acquireReadBuffer(
-            SoapySDR::Stream *stream,
-            size_t &handle,
-            const void **buffs,
-            int &flags,
-            long long &timeNs,
-            const long timeoutUs = 100000);
+    int acquireReadBuffer(SoapySDR::Stream *stream, size_t &handle, const void **buffs, int &flags, long long &timeNs, const long timeoutUs = 100000);
 
-    void releaseReadBuffer(
-            SoapySDR::Stream *stream,
-            const size_t handle);
+    void releaseReadBuffer(SoapySDR::Stream *stream, const size_t handle);
 
     /*******************************************************************
      * Antenna API
@@ -136,12 +118,7 @@ public:
      * Frequency API
      ******************************************************************/
 
-    void setFrequency(
-            const int direction,
-            const size_t channel,
-            const std::string &name,
-            const double frequency,
-            const SoapySDR::Kwargs &args = SoapySDR::Kwargs());
+    void setFrequency(const int direction, const size_t channel, const std::string &name, const double frequency, const SoapySDR::Kwargs &args = SoapySDR::Kwargs());
 
     double getFrequency(const int direction, const size_t channel, const std::string &name) const;
 
@@ -171,10 +148,6 @@ public:
      * Utility
      ******************************************************************/
 
-  //  static std::string rtlTunerToString(rtlsdr_tuner tunerType);
-  //  static rtlsdr_tuner rtlStringToTuner(std::string tunerType);
-   // static int getE4000Gain(int stage, int gain);
-
 
     /*******************************************************************
      * Settings API
@@ -195,8 +168,13 @@ private:
     skiq_rx_hdl_t rx_hdl;
     skiq_tx_hdl_t tx_hdl;
 
-    uint64_t rx_sampleRate, rx_centerFrequency;
-    uint64_t tx_sampleRate, tx_centerFrequency;
+    //rx
+    uint64_t rx_center_frequency;
+    uint32_t rx_sample_rate, rx_bandwidth;
+
+    //tx
+    uint64_t tx_center_frequency;
+    uint32_t tx_sample_rate, tx_bandwidth;
 
     size_t numBuffers, bufferLength;
     bool iqSwap, agcMode;

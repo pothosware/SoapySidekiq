@@ -13,7 +13,7 @@ list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR})
 find_package(Sidekiq)
 
 if (NOT Sidekiq_FOUND)
-    message(FATAL_ERROR "RTL-SDR development files not found...")
+    message(FATAL_ERROR "Sidekiq development files not found...")
 endif ()
 message(STATUS "Sidekiq_INCLUDE_DIRS - ${Sidekiq_INCLUDE_DIRS}")
 message(STATUS "Sidekiq_LIBRARIES - ${Sidekiq_LIBRARIES}")

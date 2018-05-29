@@ -5,8 +5,10 @@ std::vector<SoapySDR::Kwargs> SoapySidekiq::sidekiq_devices;
 
 SoapySidekiq::SoapySidekiq(const SoapySDR::Kwargs &args)
 {
-    rx_sampleRate = 2048000;
-    rx_centerFrequency = 100000000;
+    rx_sample_rate = 2048000;
+    rx_center_frequency = 100000000;
+    tx_sample_rate = 2048000;
+    tx_center_frequency = 100000000;
 
 
     numBuffers = DEFAULT_NUM_BUFFERS;
@@ -31,14 +33,11 @@ SoapySidekiq::SoapySidekiq(const SoapySDR::Kwargs &args)
         SoapySDR_logf(SOAPY_SDR_DEBUG, "Found Sidekiq Device using device index parameter 'card' = %d", card);
     }
 
-
     SoapySDR_logf(SOAPY_SDR_DEBUG, "Sidekiq opening card %d", card);
 
-
-    //uint8_t num_cards = 2;
-   // uint8_t cards[num_cards] = {0, 1};
     skiq_xport_type_t type = skiq_xport_type_auto;
     skiq_xport_init_level_t level = skiq_xport_init_level_full;
+
     /* initialize libsidekiq for card numbers 0 and 1 */
     skiq_init(type, level, &card, 1);
 
@@ -99,7 +98,7 @@ std::vector<std::string> SoapySidekiq::listAntennas(const int direction, const s
 
 void SoapySidekiq::setAntenna(const int direction, const size_t channel, const std::string &name)
 {
-
+    SoapySDR::Device::setAntenna(direction, channel, name);
 }
 
 std::string SoapySidekiq::getAntenna(const int direction, const size_t channel) const
@@ -123,7 +122,7 @@ bool SoapySidekiq::hasFrequencyCorrection(const int direction, const size_t chan
 
 void SoapySidekiq::setFrequencyCorrection(const int direction, const size_t channel, const double value)
 {
-
+    SoapySDR::Device::setFrequencyCorrection(direction, channel, value);
 }
 
 double SoapySidekiq::getFrequencyCorrection(const int direction, const size_t channel) const
@@ -165,6 +164,8 @@ bool SoapySidekiq::getGainMode(const int direction, const size_t channel) const
         skiq_read_rx_gain_mode(card, rx_hdl, &p_gain_mode);
         return p_gain_mode == skiq_rx_gain_auto;
     }
+
+    return  SoapySDR::Device::getGainMode(direction, channel);
 }
 
 void SoapySidekiq::setGain(const int direction, const size_t channel, const double value)
@@ -191,7 +192,7 @@ double SoapySidekiq::getGain(const int direction, const size_t channel, const st
         return double(gain_index);
     }
 
-    return 0;
+    return SoapySDR::Device::getGain(direction, channel, name);
 }
 
 SoapySDR::Range SoapySidekiq::getGainRange(const int direction, const size_t channel, const std::string &name) const
@@ -203,6 +204,9 @@ SoapySDR::Range SoapySidekiq::getGainRange(const int direction, const size_t cha
         skiq_read_rx_gain_index_range(card, rx_hdl, &gain_index_min, &gain_index_max);
         return SoapySDR::Range(gain_index_max, gain_index_max);
     }
+
+    return SoapySDR::Device::getGainRange(direction, channel, name);
+
 }
 
 /*******************************************************************
@@ -212,23 +216,22 @@ SoapySDR::Range SoapySidekiq::getGainRange(const int direction, const size_t cha
 void SoapySidekiq::setFrequency(const int direction, const size_t channel, const std::string &name, const double frequency, const SoapySDR::Kwargs &args)
 {
     if (direction == SOAPY_SDR_RX && name == "RF"){
-        rx_centerFrequency = (uint64_t) frequency;
+        rx_center_frequency = (uint64_t) frequency;
         resetBuffer = true;
-        SoapySDR_logf(SOAPY_SDR_DEBUG, "Setting rx center freq: %d", rx_centerFrequency);
-        skiq_write_rx_LO_freq(card, rx_hdl, rx_centerFrequency);
+        SoapySDR_logf(SOAPY_SDR_DEBUG, "Setting rx center freq: %d", rx_center_frequency);
+        skiq_write_rx_LO_freq(card, rx_hdl, rx_center_frequency);
     }
 
     if (direction == SOAPY_SDR_TX && name == "RF"){
-        tx_centerFrequency = (uint64_t) frequency;
+        tx_center_frequency = (uint64_t) frequency;
         resetBuffer = true;
-        SoapySDR_logf(SOAPY_SDR_DEBUG, "Setting tx center freq: %d", tx_centerFrequency);
-        skiq_write_tx_LO_freq(card, tx_hdl, tx_centerFrequency);
+        SoapySDR_logf(SOAPY_SDR_DEBUG, "Setting tx center freq: %d", tx_center_frequency);
+        skiq_write_tx_LO_freq(card, tx_hdl, tx_center_frequency);
     }
 }
 
 double SoapySidekiq::getFrequency(const int direction, const size_t channel, const std::string &name) const
 {
-
     if (direction == SOAPY_SDR_RX && name == "RF") {
         uint64_t freq;
         double tuned_freq;
@@ -259,11 +262,10 @@ SoapySDR::RangeList SoapySidekiq::getFrequencyRange(
         const size_t channel,
         const std::string &name) const
 {
-
+    SoapySDR::RangeList results;
     uint64_t max;
     uint64_t min;
 
-    SoapySDR::RangeList results;
     if (direction == SOAPY_SDR_RX && name == "RF")
     {
         skiq_read_rx_LO_freq_range(card, &max, &min);
@@ -296,18 +298,18 @@ void SoapySidekiq::setSampleRate(const int direction, const size_t channel, cons
 
     if (direction == SOAPY_SDR_RX)
     {
-        rx_sampleRate = rate;
+        rx_sample_rate = rate;
         resetBuffer = true;
-        SoapySDR_logf(SOAPY_SDR_DEBUG, "Setting rx sample rate: %d", rx_sampleRate);
-        skiq_write_rx_sample_rate_and_bandwidth(card, rx_hdl, rx_sampleRate, rx_sampleRate);
+        SoapySDR_logf(SOAPY_SDR_DEBUG, "Setting rx sample rate: %d", rx_sample_rate);
+        skiq_write_rx_sample_rate_and_bandwidth(card, rx_hdl, rx_sample_rate, rx_bandwidth);
     }
 
     if (direction == SOAPY_SDR_TX)
     {
-        tx_sampleRate = rate;
+        tx_sample_rate = rate;
         resetBuffer = true;
-        SoapySDR_logf(SOAPY_SDR_DEBUG, "Setting tx sample rate: %d", tx_sampleRate);
-        skiq_write_tx_sample_rate_and_bandwidth(card, tx_hdl, tx_sampleRate, tx_sampleRate);
+        SoapySDR_logf(SOAPY_SDR_DEBUG, "Setting tx sample rate: %d", tx_sample_rate);
+        skiq_write_tx_sample_rate_and_bandwidth(card, tx_hdl, tx_sample_rate, tx_bandwidth);
     }
 }
 
@@ -327,7 +329,7 @@ double SoapySidekiq::getSampleRate(const int direction, const size_t channel) co
         return double(rate);
     }
 
-    return 0;
+    return SoapySDR::Device::getSampleRate(direction, channel);
 }
 
 std::vector<double> SoapySidekiq::listSampleRates(const int direction, const size_t channel) const
@@ -348,12 +350,36 @@ std::vector<double> SoapySidekiq::listSampleRates(const int direction, const siz
 
 void SoapySidekiq::setBandwidth(const int direction, const size_t channel, const double bw)
 {
-    //SoapySDR::Device::setBandwidth(direction, channel, bw);
+    if (direction == SOAPY_SDR_RX)
+    {
+        rx_bandwidth = bw;
+        skiq_write_rx_sample_rate_and_bandwidth(card, rx_hdl, rx_sample_rate, rx_bandwidth);
+    }
+
+    if (direction == SOAPY_SDR_TX)
+    {
+        tx_bandwidth = bw;
+        skiq_write_tx_sample_rate_and_bandwidth(card, tx_hdl, tx_sample_rate, tx_bandwidth);
+    }
 }
 
 double SoapySidekiq::getBandwidth(const int direction, const size_t channel) const
 {
-    //return SoapySDR::Device::getBandwidth(direction, channel);
+    uint32_t rate;
+    double actual_rate;
+    uint32_t bandwidth;
+    uint32_t actual_bandwidth;
+    if (direction == SOAPY_SDR_RX)
+    {
+        skiq_read_rx_sample_rate_and_bandwidth(card, rx_hdl, &rate, &actual_rate, &bandwidth, &actual_bandwidth);
+    }
+
+    if (direction == SOAPY_SDR_TX)
+    {
+        skiq_read_tx_sample_rate_and_bandwidth(card, tx_hdl, &rate, &actual_rate, &bandwidth, &actual_bandwidth);
+    }
+
+    return bandwidth;
 }
 
 std::vector<double> SoapySidekiq::listBandwidths(const int direction, const size_t channel) const
@@ -391,7 +417,7 @@ void SoapySidekiq::writeSetting(const std::string &key, const std::string &value
 
     if (key == "iq_swap")
     {
-        iqSwap = ((value=="true") ? true : false);
+        iqSwap = (value=="true");
         SoapySDR_logf(SOAPY_SDR_DEBUG, "RTL-SDR I/Q swap: %s", iqSwap ? "true" : "false");
     }
 
@@ -400,9 +426,9 @@ void SoapySidekiq::writeSetting(const std::string &key, const std::string &value
 std::string SoapySidekiq::readSetting(const std::string &key) const
 {
     if (key == "iq_swap") {
-        return iqSwap?"true":"false";
+        return iqSwap ? "true" : "false";
     }
 
     SoapySDR_logf(SOAPY_SDR_WARNING, "Unknown setting '%s'", key.c_str());
-    return "";
+    return SoapySDR::Device::readSetting(key);
 }
