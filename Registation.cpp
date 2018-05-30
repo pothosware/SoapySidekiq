@@ -2,6 +2,7 @@
 #include <SoapySDR/Registry.hpp>
 #include <cstdlib> //malloc
 #include <sidekiq_params.h>
+#include <unistd.h>
 
 static std::vector<SoapySDR::Kwargs> findSidekiq(const SoapySDR::Kwargs &args)
 {
@@ -21,18 +22,17 @@ static std::vector<SoapySDR::Kwargs> findSidekiq(const SoapySDR::Kwargs &args)
         SoapySDR::Kwargs devInfo;
         bool deviceAvailable = false;
 
-        skiq_read_parameters(i, &param);
+        //skiq_read_parameters(i, &param);
 
         /* determine the serial number based on the card number */
         skiq_read_serial_string(i, &serial_str);
 
         /* check if card is avail */
         skiq_is_card_avail(i, &card_owner);
-        deviceAvailable = card_owner <= 0;
-
+        deviceAvailable = (card_owner == getpid());//owner must be this process(pid)
         if (!deviceAvailable)
         {
-            SoapySDR_logf(SOAPY_SDR_DEBUG, "\tUnable to access device #%d (in use?)", i);
+            SoapySDR_logf(SOAPY_SDR_DEBUG, "\tUnable to access card #%d, owner pid %d", i, card_owner);
         }
 
         devInfo["card"] = std::to_string(i);
