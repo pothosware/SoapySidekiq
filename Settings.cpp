@@ -37,16 +37,16 @@ SoapySidekiq::SoapySidekiq(const SoapySDR::Kwargs &args)
         SoapySDR_logf(SOAPY_SDR_DEBUG, "Found Sidekiq Device using device index parameter 'card' = %d", card);
     }
 
-
-
     SoapySDR_logf(SOAPY_SDR_DEBUG, "Sidekiq opening card %d", card);
+
+    //Handle (TODO add to args)
+    rx_hdl = skiq_rx_hdl_A1;
+    tx_hdl = skiq_tx_hdl_A1;
 
     skiq_xport_type_t type = skiq_xport_type_auto;
     skiq_xport_init_level_t level = skiq_xport_init_level_full;
 
-    /* initialize libsidekiq for card numbers 0 and 1 */
     skiq_init(type, level, &card, 1);
-
 }
 
 SoapySidekiq::~SoapySidekiq(void)
