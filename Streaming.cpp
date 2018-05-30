@@ -25,7 +25,7 @@ SoapySDR::ArgInfoList SoapySidekiq::getStreamArgsInfo(const int direction, const
     bufflenArg.key = "bufflen";
     bufflenArg.value = std::to_string(DEFAULT_BUFFER_LENGTH);
     bufflenArg.name = "Buffer Size";
-    bufflenArg.description = "Number of bytes per buffer, multiples of 512 only.";
+    bufflenArg.description = "Number of bytes per buffer, multiples of 4072 only.";
     bufflenArg.units = "bytes";
     bufflenArg.type = SoapySDR::ArgInfo::INT;
 
@@ -55,54 +55,59 @@ SoapySDR::ArgInfoList SoapySidekiq::getStreamArgsInfo(const int direction, const
 }
 
 /*******************************************************************
- * Async thread work
+ * Sidekiq receive thread
  ******************************************************************/
-/*
-static void _rx_callback(unsigned char *buf, uint32_t len, void *ctx)
-{
-    //printf("_rx_callback\n");
-    SoapySidekiq *self = (SoapySidekiq *)ctx;
-    self->rx_callback(buf, len);
-}
 
-void SoapySidekiq::rx_async_operation(void)
-{
-    //printf("rx_async_operation\n");
-    Sidekiq_read_async(dev, &_rx_callback, this, asyncBuffs, bufferLength);
-    //printf("rx_async_operation done!\n");
-}
+void SoapySidekiq::rx_receive_operation(void) {
 
-void SoapySidekiq::rx_callback(unsigned char *buf, uint32_t len)
-{
-    //printf("_rx_callback %d _buf_head=%d, numBuffers=%d\n", len, _buf_head, _buf_tail);
+    skiq_write_rx_data_src(card, rx_hdl, skiq_data_src_iq);
+    skiq_start_rx_streaming(card, rx_hdl);
 
-    //overflow condition: the caller is not reading fast enough
-    if (_buf_count == numBuffers)
-    {
-        _overflowEvent = true;
-        return;
+    skiq_rx_block_t *p_rx_block;
+    uint32_t len;
+    uint64_t num_blocks = 0;
+    bool running = true;
+
+    while (running) {
+
+        auto &buff = _buffs[_buf_tail];
+        int buffer_len = 0;
+        while (buffer_len < bufferLength) {
+
+            //blocking skiq_recieve
+            if (skiq_receive(card, &rx_hdl, &p_rx_block, &len) == skiq_rx_status_success) {
+
+                uint32_t data_bytes = (len - SKIQ_RX_HEADER_SIZE_IN_BYTES);
+                uint32_t data_len = (len - SKIQ_RX_HEADER_SIZE_IN_BYTES) / sizeof(int16_t);
+
+                int i;
+
+                //copy into the buffer queue
+                for (i = 0; i < data_len; i++) {
+                    buff[i + buffer_len] = p_rx_block->data[i];//copy qi data to buffer
+                }
+                buffer_len += data_len;
+            }
+        }
+
+        //increment the tail pointer
+        _buf_tail = (_buf_tail + 1) % numBuffers;
+
+        //increment buffers available under lock
+        //to avoid race in acquireReadBuffer wait
+        {
+            std::lock_guard<std::mutex> lock(_buf_mutex);
+            _buf_count++;
+
+        }
+
+        //notify readStream()
+        _buf_cond.notify_one();
+
     }
 
-    //copy into the buffer queue
-    auto &buff = _buffs[_buf_tail];
-    buff.resize(len);
-    std::memcpy(buff.data(), buf, len);
-
-    //increment the tail pointer
-    _buf_tail = (_buf_tail + 1) % numBuffers;
-
-    //increment buffers available under lock
-    //to avoid race in acquireReadBuffer wait
-    {
-        std::lock_guard<std::mutex> lock(_buf_mutex);
-        _buf_count++;
-
-    }
-
-    //notify readStream()
-    _buf_cond.notify_one();
 }
-*/
+
 /*******************************************************************
  * Stream API
  ******************************************************************/
@@ -128,7 +133,6 @@ SoapySDR::Stream *SoapySidekiq::setupStream(const int direction, const std::stri
                 + "' -- Only CS16 is supported by SoapySidekiq module.");
     }
 
-
     bufferLength = DEFAULT_BUFFER_LENGTH;
     if (args.count("bufflen") != 0)
     {
@@ -142,7 +146,7 @@ SoapySDR::Stream *SoapySidekiq::setupStream(const int direction, const std::stri
         }
         catch (const std::invalid_argument &){}
     }
-    SoapySDR_logf(SOAPY_SDR_DEBUG, "RTL-SDR Using buffer length %d", bufferLength);
+    SoapySDR_logf(SOAPY_SDR_DEBUG, "Sidekiq Using buffer length %d", bufferLength);
 
     numBuffers = DEFAULT_NUM_BUFFERS;
     if (args.count("buffers") != 0)
@@ -157,8 +161,7 @@ SoapySDR::Stream *SoapySidekiq::setupStream(const int direction, const std::stri
         }
         catch (const std::invalid_argument &){}
     }
-    SoapySDR_logf(SOAPY_SDR_DEBUG, "RTL-SDR Using %d buffers", numBuffers);
-
+    SoapySDR_logf(SOAPY_SDR_DEBUG, "Sidekiq Using %d buffers", numBuffers);
 
     //clear async fifo counts
     _buf_tail = 0;
@@ -190,8 +193,11 @@ int SoapySidekiq::activateStream(SoapySDR::Stream *stream, const int flags, cons
     resetBuffer = true;
     bufferedElems = 0;
 
-    /* begin streaming on the Rx interface */
-    skiq_start_rx_streaming(card, rx_hdl);
+    //start the receive thread
+    if (not _rx_receive_thread.joinable())
+    {
+        _rx_receive_thread = std::thread(&SoapySidekiq::rx_receive_operation, this);
+    }
 
     return 0;
 }
@@ -228,22 +234,21 @@ int SoapySidekiq::readStream(SoapySDR::Stream *stream, void * const *buffs, cons
     size_t returnedElems = std::min(bufferedElems, numElems);
 
     //convert into user's buff0
-
-    int8_t *itarget = (int8_t *) buff0;
+    int16_t *itarget = (int16_t *) buff0;
     if (iqSwap)
     {
         for (size_t i = 0; i < returnedElems; i++)
         {
-            itarget[i * 2] = _currentBuff[i * 2 + 1]-128;
-            itarget[i * 2 + 1] = _currentBuff[i * 2]-128;
+            itarget[i * 2] = _currentBuff[i * 2 + 1];
+            itarget[i * 2 + 1] = _currentBuff[i * 2];
         }
     }
     else
     {
         for (size_t i = 0; i < returnedElems; i++)
         {
-            itarget[i * 2] = _currentBuff[i * 2]-128;
-            itarget[i * 2 + 1] = _currentBuff[i * 2 + 1]-128;
+            itarget[i * 2] = _currentBuff[i * 2];
+            itarget[i * 2 + 1] = _currentBuff[i * 2 + 1];
         }
     }
 

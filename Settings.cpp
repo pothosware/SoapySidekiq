@@ -37,6 +37,8 @@ SoapySidekiq::SoapySidekiq(const SoapySDR::Kwargs &args)
         SoapySDR_logf(SOAPY_SDR_DEBUG, "Found Sidekiq Device using device index parameter 'card' = %d", card);
     }
 
+
+
     SoapySDR_logf(SOAPY_SDR_DEBUG, "Sidekiq opening card %d", card);
 
     skiq_xport_type_t type = skiq_xport_type_auto;
@@ -418,13 +420,11 @@ SoapySDR::ArgInfoList SoapySidekiq::getSettingInfo(void) const
 
 void SoapySidekiq::writeSetting(const std::string &key, const std::string &value)
 {
-
     if (key == "iq_swap")
     {
         iqSwap = (value=="true");
         SoapySDR_logf(SOAPY_SDR_DEBUG, "RTL-SDR I/Q swap: %s", iqSwap ? "true" : "false");
     }
-
 }
 
 std::string SoapySidekiq::readSetting(const std::string &key) const

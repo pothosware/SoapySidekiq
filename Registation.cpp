@@ -1,6 +1,7 @@
 #include "SoapySidekiq.hpp"
 #include <SoapySDR/Registry.hpp>
 #include <cstdlib> //malloc
+#include <sidekiq_params.h>
 
 static std::vector<SoapySDR::Kwargs> findSidekiq(const SoapySDR::Kwargs &args)
 {
@@ -11,6 +12,7 @@ static std::vector<SoapySDR::Kwargs> findSidekiq(const SoapySDR::Kwargs &args)
     char *serial_str;
     pid_t card_owner;
     skiq_xport_type_t type = skiq_xport_type_auto;
+    skiq_param_t param;
 
     /* query the list of all Sidekiq cards on the PCIe interface */
     skiq_get_cards(type, &number_of_cards, card_list);
@@ -18,6 +20,8 @@ static std::vector<SoapySDR::Kwargs> findSidekiq(const SoapySDR::Kwargs &args)
     for (int i = 0; i < number_of_cards; i++) {
         SoapySDR::Kwargs devInfo;
         bool deviceAvailable = false;
+
+        skiq_read_parameters(i, &param);
 
         /* determine the serial number based on the card number */
         skiq_read_serial_string(i, &serial_str);

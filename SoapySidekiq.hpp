@@ -10,9 +10,9 @@
 #include <condition_variable>
 #include <atomic>
 
-#define DEFAULT_BUFFER_LENGTH (16 * 32 * 512)
+#define DEFAULT_BUFFER_LENGTH (10 * 4072)
 #define DEFAULT_NUM_BUFFERS 15
-#define BYTES_PER_SAMPLE 2
+#define BYTES_PER_SAMPLE 4
 
 class SoapySidekiq: public SoapySDR::Device
 {
@@ -190,15 +190,18 @@ private:
     bool iqSwap, agcMode;
 
 public:
+    //receive thread
+    std::thread _rx_receive_thread;
+    void rx_receive_operation(void);
 
     std::mutex _buf_mutex;
     std::condition_variable _buf_cond;
 
-    std::vector<std::vector<signed char> > _buffs;
+    std::vector<std::vector<int16_t> > _buffs;
     size_t	_buf_head;
     size_t	_buf_tail;
     std::atomic<size_t>	_buf_count;
-    signed char *_currentBuff;
+    int16_t *_currentBuff;
     std::atomic<bool> _overflowEvent;
     size_t _currentHandle;
     size_t bufferedElems;
