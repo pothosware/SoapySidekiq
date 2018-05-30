@@ -35,7 +35,10 @@ static std::vector<SoapySDR::Kwargs> findSidekiq(const SoapySDR::Kwargs &args)
             SoapySDR_logf(SOAPY_SDR_DEBUG, "\tUnable to access card #%d, owner pid %d", i, card_owner);
         }
 
+        std::string deviceLabel = "Epiq Solutions - Sidekiq :: " + std::string(serial_str);
+
         devInfo["card"] = std::to_string(i);
+        devInfo["label"] = deviceLabel;
         devInfo["available"] = deviceAvailable ? "Yes" : "No";
         devInfo["product"] = "Sidekiq";
         devInfo["serial"] = std::string(serial_str);
