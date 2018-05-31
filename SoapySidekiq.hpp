@@ -10,9 +10,9 @@
 #include <condition_variable>
 #include <atomic>
 
-#define DEFAULT_BUFFER_LENGTH (10 * 4072)
-#define DEFAULT_NUM_BUFFERS 15
-#define BYTES_PER_SAMPLE 4
+#define DEFAULT_BUFFER_LENGTH     (65536)
+#define DEFAULT_NUM_BUFFERS       (8)
+#define DEFAULT_ELEMS_PER_SAMPLE  (2)
 
 class SoapySidekiq: public SoapySDR::Device
 {
@@ -186,7 +186,14 @@ private:
     uint64_t tx_center_frequency;
     uint32_t tx_sample_rate, tx_bandwidth;
 
-    size_t numBuffers, bufferLength;
+    //numBuffers, bufferElems, elementsPerSample
+    //are indeed constants
+    size_t numBuffers;
+    const unsigned int bufferElems = DEFAULT_BUFFER_LENGTH;
+    const int elementsPerSample = DEFAULT_ELEMS_PER_SAMPLE;
+    size_t bufferLength;
+    std::atomic_uint shortsPerWord;
+
     bool iqSwap, agcMode;
 
 public:
@@ -208,4 +215,5 @@ public:
     std::atomic<bool> resetBuffer;
 
     static std::vector<SoapySDR::Kwargs> sidekiq_devices;
+    static bool rx_running;
 };
