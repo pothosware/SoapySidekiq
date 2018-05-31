@@ -107,11 +107,9 @@ class SoapySidekiq : public SoapySDR::Device {
 
   bool hasDCOffsetMode(const int direction, const size_t channel) const;
 
-  bool hasFrequencyCorrection(const int direction, const size_t channel) const;
+  void setDCOffsetMode(const int direction, const size_t channel, const bool automatic);
 
-  void setFrequencyCorrection(const int direction, const size_t channel, const double value);
-
-  double getFrequencyCorrection(const int direction, const size_t channel) const;
+  bool getDCOffsetMode(const int direction, const size_t channel) const;
 
   /*******************************************************************
    * Gain API
