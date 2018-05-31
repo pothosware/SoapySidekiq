@@ -14,7 +14,9 @@ static std::vector<SoapySDR::Kwargs> findSidekiq(const SoapySDR::Kwargs &args) {
   skiq_xport_type_t type = skiq_xport_type_auto;
 
   /* query the list of all Sidekiq cards on the PCIe interface */
-  skiq_get_cards(type, &number_of_cards, card_list);
+  if(skiq_get_cards(type, &number_of_cards, card_list) < 0){
+    SoapySDR_log(SOAPY_SDR_ERROR,  "Failure: skiq_get_cards");
+  }
 
   for (int i = 0; i < number_of_cards; i++) {
     SoapySDR::Kwargs devInfo;
@@ -27,7 +29,7 @@ static std::vector<SoapySDR::Kwargs> findSidekiq(const SoapySDR::Kwargs &args) {
     skiq_is_card_avail(i, &card_owner);
     deviceAvailable = (card_owner == getpid());  //  owner must be this process(pid)
     if (!deviceAvailable) {
-      SoapySDR_logf(SOAPY_SDR_DEBUG, "\tUnable to access card #%d, owner pid (%d)", i, card_owner);
+      SoapySDR_logf(SOAPY_SDR_WARNING, "Unable to access card #%d, owner pid (%d)", i, card_owner);
     }
 
     std::string deviceLabel = "Epiq Solutions - Sidekiq :: " + std::string(serial_str);

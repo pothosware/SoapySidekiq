@@ -25,12 +25,21 @@ std::string SoapySidekiq::readSensor(const std::string &key) const {
       SoapySDR_logf(SOAPY_SDR_WARNING, "Acceleration not supported by card %i", card);
       return "{}";
     }
-    skiq_write_accel_state(card, 1);  //  enable
+    if (skiq_write_accel_state(card, 1) < 0) {//  enable
+      SoapySDR_logf(SOAPY_SDR_ERROR, "Failure: skiq_write_accel_state (card %i)", card);
+      return "{}";
+    }
     int16_t x_data = 0;
     int16_t y_data = 0;
     int16_t z_data = 0;
-    skiq_read_accel(card, &x_data, &y_data, &z_data);
-    skiq_write_accel_state(card, 0);  //  disable
+    if (skiq_read_accel(card, &x_data, &y_data, &z_data) < 0) {
+      SoapySDR_logf(SOAPY_SDR_ERROR, "Failure: skiq_read_accel (card %i)", card);
+      return "{}";
+    }
+    if (skiq_write_accel_state(card, 0) < 0) { //  disable
+      SoapySDR_logf(SOAPY_SDR_ERROR, "Failure: skiq_write_accel_state (card %i)", card);
+      return "{}";
+    };
     std::stringstream ss;
     ss << "{\"x\":" << x_data << " \"y\":" << y_data << " \"z\":" << z_data << "}";  //  json format
     return ss.str();
