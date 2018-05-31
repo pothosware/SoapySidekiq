@@ -81,7 +81,7 @@ void SoapySidekiq::rx_receive_operation(void) {
         std::lock_guard<std::mutex> lock(_buf_mutex);
         // check if we need to move on to next buffer in ring
         if ((_buffs[_buf_tail].size() + space_req) >= (bufferLength)) {
-          SoapySDR_logf(SOAPY_SDR_DEBUG, "Rotating Buffer Ring %d", _buf_count.load());
+          SoapySDR_logf(SOAPY_SDR_TRACE, "Rotating Buffer Ring %d", _buf_count.load());
 
           // increment the tail pointer and buffer count
           _buf_tail = (_buf_tail + 1) % numBuffers;
@@ -144,7 +144,7 @@ SoapySDR::Stream *SoapySidekiq::setupStream(const int direction,
   } else{
     throw std::runtime_error(
         "setupStream invalid format '" + format
-            + "' -- Only CS16 is supported by SoapySidekiq module.");
+            + "' -- Only CS16 or CF32 is supported by SoapySidekiq module.");
   }
 
   bufferLength = DEFAULT_BUFFER_LENGTH;
@@ -339,7 +339,7 @@ int SoapySidekiq::acquireReadBuffer(SoapySDR::Stream *stream,
 }
 
 void SoapySidekiq::releaseReadBuffer(SoapySDR::Stream *stream, const size_t handle) {
-  SoapySDR_logf(SOAPY_SDR_DEBUG, "Release Read Buffer %d", handle);
+  SoapySDR_logf(SOAPY_SDR_TRACE, "Release Read Buffer %d", handle);
   std::lock_guard<std::mutex> lock(_buf_mutex);
   _buffs[handle].clear();
   _buf_count--;
