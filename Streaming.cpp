@@ -46,7 +46,12 @@ SoapySDR::ArgInfoList SoapySidekiq::getStreamArgsInfo(const int direction, const
  ******************************************************************/
 
 void SoapySidekiq::rx_receive_operation(void) {
+  SoapySDR_log(SOAPY_SDR_INFO, "Starting RX Sidekiq Thread");
+
+  /* set rx source as iq data */
   skiq_write_rx_data_src(card, rx_hdl, skiq_data_src_iq);
+
+  /* start rx streaming */
   skiq_start_rx_streaming(card, rx_hdl);
 
   skiq_rx_block_t *p_rx_block;
@@ -55,41 +60,45 @@ void SoapySidekiq::rx_receive_operation(void) {
   while (rx_running) {
     // check for overflow
     if (_buf_count == numBuffers) {
+      SoapySDR_log(SOAPY_SDR_WARNING, "Detected overflow Event in RX Sidekiq Thread");
       _overflowEvent = true;
-      printf("OVERFLOW FIX ME");
-      break;
     }
 
-    //  blocking skiq_recieve
+    /*  blocking skiq_recieve */
     if (skiq_receive(card, &rx_hdl, &p_rx_block, &len) == skiq_rx_status_success) {
       // number of i and q samples
       uint32_t space_req = (len - SKIQ_RX_HEADER_SIZE_IN_BYTES) / sizeof(int16_t);
 
-      std::lock_guard<std::mutex> lock(_buf_mutex);
+      // buf mutex
+      {
+        std::lock_guard<std::mutex> lock(_buf_mutex);
+        // check if we need to move on to next buffer in ring
+        if ((_buffs[_buf_tail].size() + space_req) >= (bufferLength)) {
+          SoapySDR_logf(SOAPY_SDR_DEBUG, "Rotating Buffer Ring %d", _buf_count.load());
 
-      // check if we need to move on to next buffer in ring
-      if ((_buffs[_buf_tail].size() + space_req) >= (bufferLength)) {
-        // increment the tail pointer and buffer count
-        _buf_tail = (_buf_tail + 1) % numBuffers;
-        _buf_count++;
+          // increment the tail pointer and buffer count
+          _buf_tail = (_buf_tail + 1) % numBuffers;
+          _buf_count++;
 
-        // notify readStream()
-        _buf_cond.notify_one();
-      }
+          // notify readStream()
+          _buf_cond.notify_one();
+        }
 
-      // get current fill buffer
-      auto &buff = _buffs[_buf_tail];
-      buff.resize(buff.size() + space_req);
+        // get current fill buffer
+        auto &buff = _buffs[_buf_tail];
+        buff.resize(buff.size() + space_req);
 
-      // copy into the buffer queue
-      unsigned int i = 0;
-      int16_t *dptr = buff.data();
-      dptr += (buff.size() - space_req);
-      for (i = 0; i < space_req; i++) {
-        *dptr++ = p_rx_block->data[i];  //  copy qi data to buffer
+        // copy into the buffer queue
+        unsigned int i = 0;
+        int16_t *dptr = buff.data();
+        dptr += (buff.size() - space_req);
+        for (i = 0; i < space_req; i++) {
+          *dptr++ = p_rx_block->data[i];  //  copy qi data to buffer
+        }
       }
     }
   }
+  SoapySDR_log(SOAPY_SDR_INFO, "Exiting RX Sidekiq Thread");
 }
 
 /*******************************************************************
@@ -140,18 +149,20 @@ SoapySDR::Stream *SoapySidekiq::setupStream(const int direction,
   }
   SoapySDR_logf(SOAPY_SDR_DEBUG, "Sidekiq Using %d buffers", numBuffers);
 
-  std::lock_guard<std::mutex> lock(_buf_mutex);
+  //  buff mutext
+  {
+    std::lock_guard<std::mutex> lock(_buf_mutex);
 
-  //  clear async fifo counts
-  _buf_tail = 0;
-  _buf_count = 0;
-  _buf_head = 0;
+    //  clear async fifo counts
+    _buf_tail = 0;
+    _buf_count = 0;
+    _buf_head = 0;
 
-  //  allocate buffers
-  _buffs.resize(numBuffers);
-  for (auto &buff : _buffs) buff.reserve(bufferLength);
-  for (auto &buff : _buffs) buff.clear();
-
+    //  allocate buffers
+    _buffs.resize(numBuffers);
+    for (auto &buff : _buffs) buff.reserve(bufferLength);
+    for (auto &buff : _buffs) buff.clear();
+  }
   return (SoapySDR::Stream *) this;
 }
 
@@ -183,11 +194,13 @@ int SoapySidekiq::activateStream(SoapySDR::Stream *stream,
 int SoapySidekiq::deactivateStream(SoapySDR::Stream *stream, const int flags, const long long timeNs) {
   if (flags != 0) return SOAPY_SDR_NOT_SUPPORTED;
 
+  // stop receive thread
   if (_rx_receive_thread.joinable()) {
     rx_running = false;
     _rx_receive_thread.join();
   }
 
+  /* stop rx streaming */
   skiq_stop_rx_streaming(card, rx_hdl);
 
   return 0;
@@ -210,7 +223,8 @@ int SoapySidekiq::readStream(SoapySDR::Stream *stream,
 
   //  are elements left in the buffer? if not, do a new read.
   if (bufferedElems == 0) {
-    int ret = this->acquireReadBuffer(stream, _currentHandle, (const void **) &_currentBuff, flags, timeNs, timeoutUs);
+    int ret = this->acquireReadBuffer(stream, _currentHandle, (const void **) &_currentBuff, flags, timeNs,
+                                      timeoutUs);
     if (ret < 0) return ret;
     bufferedElems = ret;
   }
@@ -263,6 +277,7 @@ int SoapySidekiq::acquireReadBuffer(SoapySDR::Stream *stream,
   // reset is issued by various settings
   // overflow set in the rx thread
   if (resetBuffer || _overflowEvent) {
+    SoapySDR_log(SOAPY_SDR_INFO, "Resetting all RX Buffers");
     // drain all buffers from the fifo
     _buf_tail = 0;
     _buf_head = 0;
@@ -281,6 +296,7 @@ int SoapySidekiq::acquireReadBuffer(SoapySDR::Stream *stream,
   if (_buf_count == 0) {
     _buf_cond.wait_for(lock, std::chrono::microseconds(timeoutUs));
     if (_buf_count == 0) {
+      SoapySDR_logf(SOAPY_SDR_WARNING, "Read Timeout occured after %d ms", timeoutUs);
       return SOAPY_SDR_TIMEOUT;
     }
   }
@@ -297,8 +313,8 @@ int SoapySidekiq::acquireReadBuffer(SoapySDR::Stream *stream,
 }
 
 void SoapySidekiq::releaseReadBuffer(SoapySDR::Stream *stream, const size_t handle) {
+  SoapySDR_logf(SOAPY_SDR_DEBUG, "Release Read Buffer %d", handle);
   std::lock_guard<std::mutex> lock(_buf_mutex);
-  printf("release buf\n");
   _buffs[handle].clear();
   _buf_count--;
 }
