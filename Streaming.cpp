@@ -23,7 +23,7 @@ SoapySDR::ArgInfoList SoapySidekiq::getStreamArgsInfo(const int direction, const
   bufflenArg.key = "bufflen";
   bufflenArg.value = std::to_string(DEFAULT_BUFFER_LENGTH);
   bufflenArg.name = "Buffer Size";
-  bufflenArg.description = "Number of IQ samples per buffer, multiples of 1018 only.";
+  bufflenArg.description = "Number of IQ samples per buffer.";
   bufflenArg.units = "samples";
   bufflenArg.type = SoapySDR::ArgInfo::INT;
 
