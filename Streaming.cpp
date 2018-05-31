@@ -51,12 +51,16 @@ void SoapySidekiq::rx_receive_operation(void) {
   /* set rx source as iq data */
   skiq_write_rx_data_src(card, rx_hdl, skiq_data_src_iq);
 
+  /* set a modest rx timeout */
+  skiq_set_rx_transfer_timeout(card, 100000);
+
   /* start rx streaming */
   skiq_start_rx_streaming(card, rx_hdl);
 
   skiq_rx_block_t *p_rx_block;
   uint32_t len;
 
+  // loop until stream is deactivated
   while (rx_running) {
     // check for overflow
     if (_buf_count == numBuffers) {

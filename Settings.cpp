@@ -20,9 +20,6 @@ SoapySidekiq::SoapySidekiq(const SoapySDR::Kwargs &args) {
   shortsPerWord = 1;
   bufferLength = bufferElems * elementsPerSample * shortsPerWord;
 
-  iqSwap = false;
-  agcMode = false;
-
   bufferedElems = 0;
   _currentBuff = 0;
   resetBuffer = false;
@@ -38,8 +35,6 @@ SoapySidekiq::SoapySidekiq(const SoapySDR::Kwargs &args) {
     SoapySDR_logf(SOAPY_SDR_DEBUG, "Found Sidekiq Device using device index parameter 'card' = %d", card);
   }
 
-  SoapySDR_logf(SOAPY_SDR_DEBUG, "Sidekiq opening card %d", card);
-
   //  Handle (TODO add to args)
   rx_hdl = skiq_rx_hdl_A1;
   tx_hdl = skiq_tx_hdl_A1;
@@ -47,11 +42,10 @@ SoapySidekiq::SoapySidekiq(const SoapySDR::Kwargs &args) {
   skiq_xport_type_t type = skiq_xport_type_auto;
   skiq_xport_init_level_t level = skiq_xport_init_level_full;
 
+  SoapySDR_logf(SOAPY_SDR_DEBUG, "Sidekiq opening card %d", card);
+
   /* init sidekiq */
   skiq_init(type, level, &card, 1);
-
-  /* set a modest rx timeout */
-  skiq_set_rx_transfer_timeout(card, 100000);
 }
 
 SoapySidekiq::~SoapySidekiq(void) {
@@ -144,7 +138,6 @@ bool SoapySidekiq::hasGainMode(const int direction, const size_t channel) const 
 }
 
 void SoapySidekiq::setGainMode(const int direction, const size_t channel, const bool automatic) {
-  agcMode = automatic;
   if (direction == SOAPY_SDR_RX) {
     SoapySDR_logf(SOAPY_SDR_DEBUG,
                   "Setting Sidekiq RX Gain Mode: %s",
@@ -365,33 +358,13 @@ std::vector<double> SoapySidekiq::listBandwidths(const int direction, const size
 SoapySDR::ArgInfoList SoapySidekiq::getSettingInfo(void) const {
   SoapySDR::ArgInfoList setArgs;
 
-  SoapySDR::ArgInfo iqSwapArg;
-
-  iqSwapArg.key = "iq_swap";
-  iqSwapArg.value = "false";
-  iqSwapArg.name = "I/Q Swap";
-  iqSwapArg.description = "Sidekiq I/Q Swap Mode";
-  iqSwapArg.type = SoapySDR::ArgInfo::BOOL;
-
-  setArgs.push_back(iqSwapArg);
-
-  SoapySDR_logf(SOAPY_SDR_DEBUG, "SETARGS?");
-
   return setArgs;
 }
 
 void SoapySidekiq::writeSetting(const std::string &key, const std::string &value) {
-  if (key == "iq_swap") {
-    iqSwap = (value == "true");
-    SoapySDR_logf(SOAPY_SDR_DEBUG, "RTL-SDR I/Q swap: %s", iqSwap ? "true" : "false");
-  }
+
 }
 
 std::string SoapySidekiq::readSetting(const std::string &key) const {
-  if (key == "iq_swap") {
-    return iqSwap ? "true" : "false";
-  }
-
-  SoapySDR_logf(SOAPY_SDR_WARNING, "Unknown setting '%s'", key.c_str());
   return SoapySDR::Device::readSetting(key);
 }

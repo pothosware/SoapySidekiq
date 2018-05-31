@@ -215,8 +215,6 @@ class SoapySidekiq : public SoapySDR::Device {
   size_t bufferLength;
   std::atomic_uint shortsPerWord;
 
-  bool iqSwap, agcMode;
-
  public:
   //  receive thread
   std::thread _rx_receive_thread;
