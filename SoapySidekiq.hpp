@@ -214,6 +214,7 @@ class SoapySidekiq : public SoapySDR::Device {
   const int elementsPerSample = DEFAULT_ELEMS_PER_SAMPLE;
   size_t bufferLength;
   std::atomic_uint shortsPerWord;
+  std::atomic_bool useShort;
 
  public:
   //  receive thread

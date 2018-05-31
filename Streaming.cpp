@@ -7,6 +7,7 @@
 std::vector<std::string> SoapySidekiq::getStreamFormats(const int direction, const size_t channel) const {
   std::vector<std::string> formats;
   formats.push_back(SOAPY_SDR_CS16);
+  formats.push_back(SOAPY_SDR_CF32);
   return formats;
 }
 
@@ -71,7 +72,9 @@ void SoapySidekiq::rx_receive_operation(void) {
     /*  blocking skiq_recieve */
     if (skiq_receive(card, &rx_hdl, &p_rx_block, &len) == skiq_rx_status_success) {
       // number of i and q samples
-      uint32_t space_req = (len - SKIQ_RX_HEADER_SIZE_IN_BYTES) / sizeof(int16_t);
+      uint32_t num_samples = (len - SKIQ_RX_HEADER_SIZE_IN_BYTES) / sizeof(int16_t);
+
+      uint32_t space_req = num_samples * elementsPerSample * shortsPerWord;
 
       // buf mutex
       {
@@ -92,12 +95,21 @@ void SoapySidekiq::rx_receive_operation(void) {
         auto &buff = _buffs[_buf_tail];
         buff.resize(buff.size() + space_req);
 
-        // copy into the buffer queue
+        //  copy into the buffer queue
         unsigned int i = 0;
-        int16_t *dptr = buff.data();
-        dptr += (buff.size() - space_req);
-        for (i = 0; i < space_req; i++) {
-          *dptr++ = p_rx_block->data[i];  //  copy qi data to buffer
+
+        if (useShort) {
+          int16_t *dptr = buff.data();
+          dptr += (buff.size() - space_req);
+          for (i = 0; i < num_samples; i++) {
+            *dptr++ = p_rx_block->data[i];  //  copy qi data to buffer
+          }
+        } else {
+          float *dptr = (float *) buff.data();
+          dptr += ((buff.size() - space_req) / shortsPerWord);
+          for (i = 0; i < num_samples; i++) {
+            *dptr++ = (float) p_rx_block->data[i] / 32768.0f; //  convert qi to float
+          }
         }
       }
     }
@@ -120,10 +132,16 @@ SoapySDR::Stream *SoapySidekiq::setupStream(const int direction,
 
   //  check the format
   if (format == "CS16") {
+    useShort = true;
     shortsPerWord = 1;
     bufferLength = bufferElems * elementsPerSample * shortsPerWord;
     SoapySDR_log(SOAPY_SDR_INFO, "Using format CS16.");
-  } else {
+  } else if(format == "CF32"){
+    useShort = false;
+    shortsPerWord = sizeof(float) / sizeof(short);
+    bufferLength = bufferElems * elementsPerSample * shortsPerWord;  // allocate enough space for floats instead of shorts
+    SoapySDR_log(SOAPY_SDR_INFO, "Using format CF32.");
+  } else{
     throw std::runtime_error(
         "setupStream invalid format '" + format
             + "' -- Only CS16 is supported by SoapySidekiq module.");
@@ -235,8 +253,12 @@ int SoapySidekiq::readStream(SoapySDR::Stream *stream,
 
   size_t returnedElems = std::min(bufferedElems, numElems);
 
-  //  copy to user buffer
-  std::memcpy(buff0, _currentBuff, returnedElems * elementsPerSample * sizeof(int16_t));
+  // copy into user's buff0
+  if (useShort) {
+    std::memcpy(buff0, _currentBuff, returnedElems * elementsPerSample * sizeof(int16_t));
+  } else {
+    std::memcpy(buff0, (float *) _currentBuff, returnedElems * 2 * sizeof(float));
+  }
 
   //  bump variables for next call into readStream
   bufferedElems -= returnedElems;

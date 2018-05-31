@@ -24,6 +24,7 @@ SoapySidekiq::SoapySidekiq(const SoapySDR::Kwargs &args) {
   _currentBuff = 0;
   resetBuffer = false;
   rx_running = true;
+  useShort = true;
 
   if (args.count("card") != 0) {
     try {
