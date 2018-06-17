@@ -206,6 +206,9 @@ class SoapySidekiq : public SoapySDR::Device {
   uint64_t tx_center_frequency;
   uint32_t tx_sample_rate, tx_bandwidth;
 
+  //  setting
+  bool iq_swap;
+
   // buffer
   size_t numBuffers;
   const unsigned int bufferElems = DEFAULT_BUFFER_LENGTH;

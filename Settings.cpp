@@ -16,6 +16,8 @@ SoapySidekiq::SoapySidekiq(const SoapySDR::Kwargs &args) {
   tx_bandwidth = 2048000;
   tx_center_frequency = 100000000;
 
+  iq_swap = false;
+
   //  this may change later according to format
   shortsPerWord = 1;
   bufferLength = bufferElems * elementsPerSample * shortsPerWord;
@@ -444,12 +446,31 @@ std::vector<double> SoapySidekiq::listBandwidths(const int direction, const size
 SoapySDR::ArgInfoList SoapySidekiq::getSettingInfo(void) const {
   SoapySDR::ArgInfoList setArgs;
 
+  SoapySDR::ArgInfo iqSwapArg;
+
+  iqSwapArg.key = "iq_swap";
+  iqSwapArg.value = "false";
+  iqSwapArg.name = "I/Q Swap";
+  iqSwapArg.description = "I/Q Swap Mode";
+  iqSwapArg.type = SoapySDR::ArgInfo::BOOL;
+
+  setArgs.push_back(iqSwapArg);
+
   return setArgs;
 }
 
 void SoapySidekiq::writeSetting(const std::string &key, const std::string &value) {
+  if (key == "iq_swap") {
+    iq_swap = ((value == "true") ? true : false);
+    SoapySDR_logf(SOAPY_SDR_DEBUG, "I/Q swap: %s", iq_swap ? "true" : "false");
+  }
 }
 
 std::string SoapySidekiq::readSetting(const std::string &key) const {
-  return SoapySDR::Device::readSetting(key);
+  if (key == "iq_swap") {
+    return iq_swap ? "true" : "false";
+  }
+
+  SoapySDR_logf(SOAPY_SDR_WARNING, "Unknown setting '%s'", key.c_str());
+  return "";
 }

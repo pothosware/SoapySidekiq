@@ -64,13 +64,13 @@ void SoapySidekiq::rx_receive_operation(void) {
     SoapySDR_logf(SOAPY_SDR_ERROR, "Failure: skiq_start_rx_streaming (card %d)", card);
   }
 
-  //skiq receive params
+  //  skiq receive params
   skiq_rx_block_t *p_rx_block;
   uint32_t len;
 
-  // loop until stream is deactivated
+  //  loop until stream is deactivated
   while (rx_running) {
-    // check for overflow
+    //  check for overflow
     if (_buf_count == numBuffers) {
       SoapySDR_log(SOAPY_SDR_WARNING, "Detected overflow Event in RX Sidekiq Thread");
       _overflowEvent = true;
@@ -78,20 +78,20 @@ void SoapySidekiq::rx_receive_operation(void) {
 
     /*  blocking skiq_receive */
     if (skiq_receive(card, &rx_hdl, &p_rx_block, &len) == skiq_rx_status_success) {
-      // number of i and q samples
+      //  number of i and q samples
       uint32_t num_samples = (len - SKIQ_RX_HEADER_SIZE_IN_BYTES) / sizeof(int16_t);
 
-      // buffer space required
+      //  buffer space required
       uint32_t space_req = num_samples * elementsPerSample * shortsPerWord;
 
-      // buf mutex
+      //  buf mutex
       {
         std::lock_guard<std::mutex> lock(_buf_mutex);
         // check if we need to move on to next buffer in ring
         if ((_buffs[_buf_tail].size() + space_req) >= (bufferLength)) {
           SoapySDR_logf(SOAPY_SDR_TRACE, "Rotating Buffer Ring %d", _buf_count.load());
 
-          // increment the tail pointer and buffer count
+          //  increment the tail pointer and buffer count
           _buf_tail = (_buf_tail + 1) % numBuffers;
           _buf_count++;
 
@@ -99,24 +99,36 @@ void SoapySidekiq::rx_receive_operation(void) {
           _buf_cond.notify_one();
         }
 
-        // get current fill buffer
+        //  get current fill buffer
         auto &buff = _buffs[_buf_tail];
         buff.resize(buff.size() + space_req);
 
         //  copy into the buffer queue
         unsigned int i = 0;
 
-        if (useShort) {
+        if (useShort) { //  int16_t
           int16_t *dptr = buff.data();
           dptr += (buff.size() - space_req);
-          for (i = 0; i < num_samples; i++) {
-            *dptr++ = p_rx_block->data[i];  //  copy qi data to buffer
+          for (i = 0; i < (num_samples / elementsPerSample); i++) {
+            if (iq_swap) {
+              dptr[i * 2] = p_rx_block->data[i * 2 + 1]; // I
+              dptr[i * 2 + 1] = p_rx_block->data[i * 2]; // Q
+            } else {
+              dptr[i * 2] = p_rx_block->data[i * 2]; // Q
+              dptr[i * 2 + 1] = p_rx_block->data[i * 2 + 1]; // I
+            }
           }
-        } else {
+        } else { //  float
           float *dptr = (float *) buff.data();
           dptr += ((buff.size() - space_req) / shortsPerWord);
-          for (i = 0; i < num_samples; i++) {
-            *dptr++ = (float) p_rx_block->data[i] / 32768.0f; //  convert qi to float
+          for (i = 0; i < (num_samples / elementsPerSample); i++) {
+            if (iq_swap) {
+              dptr[i * 2] = (float)p_rx_block->data[i * 2 + 1] / 32768.0f ; // I
+              dptr[i * 2 + 1] = (float)p_rx_block->data[i * 2]/ 32768.0f; // Q
+            } else {
+              dptr[i * 2] = (float)p_rx_block->data[i * 2] / 32768.0f ; // Q
+              dptr[i * 2 + 1] = (float)p_rx_block->data[i * 2 + 1] / 32768.0f; // I
+            }
           }
         }
       }
@@ -234,7 +246,7 @@ int SoapySidekiq::deactivateStream(SoapySDR::Stream *stream, const int flags, co
   }
 
   /* stop rx streaming */
-  if(skiq_stop_rx_streaming(card, rx_hdl) < 0){
+  if (skiq_stop_rx_streaming(card, rx_hdl) < 0) {
     SoapySDR_logf(SOAPY_SDR_ERROR, "Failure: skiq_stop_rx_streaming (card %d)", card);
   }
 
