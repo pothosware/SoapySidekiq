@@ -17,7 +17,7 @@
 #include <SoapySDR/Types.hpp>
 
 #define DEFAULT_BUFFER_LENGTH     (65536)
-#define DEFAULT_NUM_BUFFERS       (8)
+#define DEFAULT_NUM_BUFFERS       (10)
 #define DEFAULT_ELEMS_PER_SAMPLE  (2)
 
 class SoapySidekiq : public SoapySDR::Device {
@@ -208,6 +208,10 @@ class SoapySidekiq : public SoapySDR::Device {
   std::string readSetting(const std::string &key) const;
 
  private:
+
+  SoapySDR::Stream* const TX_STREAM = (SoapySDR::Stream*) 0x1;
+  SoapySDR::Stream* const RX_STREAM = (SoapySDR::Stream*) 0x2;
+
   //  sidekiq card
   uint8_t card;
 
