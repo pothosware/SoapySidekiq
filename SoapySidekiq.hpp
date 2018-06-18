@@ -16,7 +16,6 @@
 #include <SoapySDR/Logger.hpp>
 #include <SoapySDR/Types.hpp>
 
-
 #define DEFAULT_BUFFER_LENGTH     (65536)
 #define DEFAULT_NUM_BUFFERS       (8)
 #define DEFAULT_ELEMS_PER_SAMPLE  (2)
@@ -74,6 +73,13 @@ class SoapySidekiq : public SoapySDR::Device {
                  long long &timeNs,
                  const long timeoutUs = 100000);
 
+  int writeStream(SoapySDR::Stream *stream,
+                  const void *const *buffs,
+                  const size_t numElems,
+                  int &flags,
+                  const long long timeNs = 0,
+                  const long timeoutUs = 100000);
+
   /*******************************************************************
    * Direct buffer access API
    ******************************************************************/
@@ -90,6 +96,17 @@ class SoapySidekiq : public SoapySDR::Device {
                         const long timeoutUs = 100000);
 
   void releaseReadBuffer(SoapySDR::Stream *stream, const size_t handle);
+
+  int acquireWriteBuffer(SoapySDR::Stream *stream,
+                         size_t &handle,
+                         void **buffs,
+                         const long timeoutUs = 100000);
+
+  void releaseWriteBuffer(SoapySDR::Stream *stream,
+                          const size_t handle,
+                          const size_t numElems,
+                          int &flags,
+                          const long long timeNs = 0);
 
   /*******************************************************************
    * Antenna API

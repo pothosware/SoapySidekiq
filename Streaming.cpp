@@ -110,24 +110,24 @@ void SoapySidekiq::rx_receive_operation(void) {
           int16_t *dptr = buff.data();
           dptr += (buff.size() - space_req);
           for (i = 0; i < (num_samples / elementsPerSample); i++) {
-            if (iq_swap) {
-              dptr[i * 2] = p_rx_block->data[i * 2 + 1]; // I
-              dptr[i * 2 + 1] = p_rx_block->data[i * 2]; // Q
+            if (!iq_swap) {
+              *dptr++ = p_rx_block->data[i * 2 + 1]; // I
+              *dptr++ = p_rx_block->data[i * 2]; // Q
             } else {
-              dptr[i * 2] = p_rx_block->data[i * 2]; // Q
-              dptr[i * 2 + 1] = p_rx_block->data[i * 2 + 1]; // I
+              *dptr++ = p_rx_block->data[i * 2]; // Q
+              *dptr++ = p_rx_block->data[i * 2 + 1]; // I
             }
           }
         } else { //  float
           float *dptr = (float *) buff.data();
           dptr += ((buff.size() - space_req) / shortsPerWord);
           for (i = 0; i < (num_samples / elementsPerSample); i++) {
-            if (iq_swap) {
-              dptr[i * 2] = (float)p_rx_block->data[i * 2 + 1] / 32768.0f ; // I
-              dptr[i * 2 + 1] = (float)p_rx_block->data[i * 2]/ 32768.0f; // Q
+            if (!iq_swap) {
+              *dptr++ = (float) p_rx_block->data[i * 2 + 1] / 32768.0f; // I
+              *dptr++ = (float) p_rx_block->data[i * 2] / 32768.0f; // Q
             } else {
-              dptr[i * 2] = (float)p_rx_block->data[i * 2] / 32768.0f ; // Q
-              dptr[i * 2 + 1] = (float)p_rx_block->data[i * 2 + 1] / 32768.0f; // I
+              *dptr++ = (float) p_rx_block->data[i * 2] / 32768.0f; // Q
+              *dptr++ = (float) p_rx_block->data[i * 2 + 1] / 32768.0f; // I
             }
           }
         }
@@ -302,6 +302,15 @@ int SoapySidekiq::readStream(SoapySDR::Stream *stream,
   return returnedElems;
 }
 
+int SoapySidekiq::writeStream(SoapySDR::Stream *stream,
+                              const void *const *buffs,
+                              const size_t numElems,
+                              int &flags,
+                              const long long timeNs,
+                              const long timeoutUs) {
+return -1;
+}
+
 /*******************************************************************
  * Direct buffer access API
  ******************************************************************/
@@ -368,4 +377,21 @@ void SoapySidekiq::releaseReadBuffer(SoapySDR::Stream *stream, const size_t hand
   std::lock_guard<std::mutex> lock(_buf_mutex);
   _buffs[handle].clear();
   _buf_count--;
+}
+
+int SoapySidekiq::acquireWriteBuffer(SoapySDR::Stream *stream,
+                                     size_t &handle,
+                                     void **buffs,
+                                     const long timeoutUs) {
+
+  return -1;
+
+}
+
+void SoapySidekiq::releaseWriteBuffer(SoapySDR::Stream *stream,
+                                      const size_t handle,
+                                      const size_t numElems,
+                                      int &flags,
+                                      const long long timeNs) {
+
 }
