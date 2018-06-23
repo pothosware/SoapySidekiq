@@ -161,6 +161,18 @@ SoapySDR::Stream *SoapySidekiq::setupStream(const int direction,
   }
 
   if (direction == SOAPY_SDR_RX) {
+    bufferElems = DEFAULT_BUFFER_LENGTH;
+    if (args.count("bufflen") != 0) {
+      try {
+        int bufferLength_in = std::stoi(args.at("bufflen"));
+        if (bufferLength_in > 0) {
+          bufferElems = bufferLength_in;
+        }
+      }
+      catch (const std::invalid_argument &) {}
+    }
+    SoapySDR_logf(SOAPY_SDR_DEBUG, "Sidekiq Using rx sample buffer length %d", bufferElems);
+
     //  check the format
     if (format == "CS16") {
       useShort = true;
@@ -178,18 +190,6 @@ SoapySDR::Stream *SoapySidekiq::setupStream(const int direction,
           "setupStream invalid format '" + format
               + "' -- Only CS16 or CF32 is supported by SoapySidekiq module.");
     }
-
-    bufferLength = DEFAULT_BUFFER_LENGTH;
-    if (args.count("bufflen") != 0) {
-      try {
-        int bufferLength_in = std::stoi(args.at("bufflen"));
-        if (bufferLength_in > 0) {
-          bufferLength = bufferLength_in;
-        }
-      }
-      catch (const std::invalid_argument &) {}
-    }
-    SoapySDR_logf(SOAPY_SDR_DEBUG, "Sidekiq Using rx buffer length %d", bufferLength);
 
     numBuffers = DEFAULT_NUM_BUFFERS;
     if (args.count("buffers") != 0) {
@@ -369,7 +369,6 @@ int SoapySidekiq::writeStream(SoapySDR::Stream *stream,
   if (skiq_write_tx_attenuation(card, tx_hdl, 0) != 0) {
     SoapySDR_logf(SOAPY_SDR_ERROR, "Failure: skiq_write_tx_attenuation (card %d)", card);
   }
-
 
   size_t data_bytes = numElems * 2 * sizeof(int16_t);
   uint32_t num_blocks = (data_bytes / (block_size_in_words * 2));

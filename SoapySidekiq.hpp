@@ -232,7 +232,7 @@ class SoapySidekiq : public SoapySDR::Device {
 
   // buffer
   size_t numBuffers;
-  const unsigned int bufferElems = DEFAULT_BUFFER_LENGTH;
+  unsigned int bufferElems = DEFAULT_BUFFER_LENGTH;
   const int elementsPerSample = DEFAULT_ELEMS_PER_SAMPLE;
   size_t bufferLength;
   std::atomic_uint shortsPerWord;
