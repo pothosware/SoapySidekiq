@@ -23,7 +23,7 @@ SoapySDR::ArgInfoList SoapySidekiq::getStreamArgsInfo(const int direction, const
   SoapySDR::ArgInfo bufflenArg;
   bufflenArg.key = "bufflen";
   bufflenArg.value = std::to_string(DEFAULT_BUFFER_LENGTH);
-  bufflenArg.name = "Buffer Size";
+  bufflenArg.name = "Buffer Sample Count";
   bufflenArg.description = "Number of IQ samples per buffer.";
   bufflenArg.units = "samples";
   bufflenArg.type = SoapySDR::ArgInfo::INT;
@@ -33,7 +33,7 @@ SoapySDR::ArgInfoList SoapySidekiq::getStreamArgsInfo(const int direction, const
   SoapySDR::ArgInfo buffersArg;
   buffersArg.key = "buffers";
   buffersArg.value = std::to_string(DEFAULT_NUM_BUFFERS);
-  buffersArg.name = "Ring buffers";
+  buffersArg.name = "Ring Buffers";
   buffersArg.description = "Number of buffers in the ring.";
   buffersArg.units = "buffers";
   buffersArg.type = SoapySDR::ArgInfo::INT;
