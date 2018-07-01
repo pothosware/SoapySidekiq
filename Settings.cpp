@@ -176,12 +176,6 @@ bool SoapySidekiq::getGainMode(const int direction, const size_t channel) const 
 }
 
 void SoapySidekiq::setGain(const int direction, const size_t channel, const double value) {
-  //  set the overall gain by distributing it across available gain elements
-  //  OR delete this function to use SoapySDR's default gain distribution algorithm...
-  SoapySDR::Device::setGain(direction, channel, value);
-}
-
-void SoapySidekiq::setGain(const int direction, const size_t channel, const std::string &name, const double value) {
   if (direction == SOAPY_SDR_RX) {
     if (skiq_write_rx_gain(card, rx_hdl, value) != 0) {
       SoapySDR_logf(SOAPY_SDR_ERROR, "Failure: skiq_write_rx_gain (card %d, value %d)", card, value);
@@ -189,7 +183,7 @@ void SoapySidekiq::setGain(const int direction, const size_t channel, const std:
   }
 }
 
-double SoapySidekiq::getGain(const int direction, const size_t channel, const std::string &name) const {
+double SoapySidekiq::getGain(const int direction, const size_t channel) const {
   if (direction == SOAPY_SDR_RX) {
     uint8_t gain_index;
     if (skiq_read_rx_gain(card, rx_hdl, &gain_index) != 0) {
@@ -198,7 +192,7 @@ double SoapySidekiq::getGain(const int direction, const size_t channel, const st
     return static_cast<double>(gain_index);
   }
 
-  return SoapySDR::Device::getGain(direction, channel, name);
+  return SoapySDR::Device::getGain(direction, channel);
 }
 
 SoapySDR::Range SoapySidekiq::getGainRange(const int direction, const size_t channel, const std::string &name) const {

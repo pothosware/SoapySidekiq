@@ -142,9 +142,7 @@ class SoapySidekiq : public SoapySDR::Device {
 
   void setGain(const int direction, const size_t channel, const double value);
 
-  void setGain(const int direction, const size_t channel, const std::string &name, const double value);
-
-  double getGain(const int direction, const size_t channel, const std::string &name) const;
+  double getGain(const int direction, const size_t channel) const;
 
   SoapySDR::Range getGainRange(const int direction, const size_t channel, const std::string &name) const;
 
@@ -183,10 +181,10 @@ class SoapySidekiq : public SoapySDR::Device {
   std::vector<double> listBandwidths(const int direction, const size_t channel) const;
 
   /*******************************************************************
-   * Utility
+   * Attenuation API
    ******************************************************************/
 
-
+  //  TODO
 
   /*******************************************************************
    * Sensor API
