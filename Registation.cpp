@@ -71,4 +71,4 @@ static SoapySDR::Device *makeSidekiq(const SoapySDR::Kwargs &args) {
   return new SoapySidekiq(args);
 }
 
-static SoapySDR::Registry registerSidekiq("Sidekiq", &findSidekiq, &makeSidekiq, SOAPY_SDR_ABI_VERSION);
+static SoapySDR::Registry registerSidekiq("sidekiq", &findSidekiq, &makeSidekiq, SOAPY_SDR_ABI_VERSION);
