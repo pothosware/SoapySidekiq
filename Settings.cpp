@@ -76,7 +76,7 @@ SoapySDR::Kwargs SoapySidekiq::getHardwareInfo(void) const {
   //  this also gets printed in --probe
   SoapySDR::Kwargs args;
 
-  args["origin"] = "https://github.com/hurdad/SoapySidekiq";
+  args["origin"] = "https://github.com/pothosware/SoapySidekiq";
   args["card"] = std::to_string(card);
 
   return args;
