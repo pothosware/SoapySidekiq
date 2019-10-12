@@ -27,10 +27,8 @@ static std::vector<SoapySDR::Kwargs> findSidekiq(const SoapySDR::Kwargs &args) {
       SoapySDR_log(SOAPY_SDR_ERROR,  "Failure: skiq_read_serial_string");
     }
 
-    /* check if card is avail */
-    if(skiq_is_card_avail(i, &card_owner) != 0){
-      SoapySDR_log(SOAPY_SDR_ERROR,  "Failure: skiq_is_card_avail");
-    }
+    /* get card availability */
+    skiq_is_card_avail(i, &card_owner);
     deviceAvailable = (card_owner == getpid());  //  owner must be this process(pid)
     if (!deviceAvailable) {
       SoapySDR_logf(SOAPY_SDR_WARNING, "Unable to access card #%d, owner pid (%d)", i, card_owner);
