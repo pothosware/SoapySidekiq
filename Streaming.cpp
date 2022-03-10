@@ -151,6 +151,8 @@ void SoapySidekiq::rx_receive_operation(void) {
       }
     } else {
       SoapySDR_logf(SOAPY_SDR_FATAL, "Failure: skiq_receive (card %d) status %d", card, status);
+      throw std::runtime_error("skiq_receive error");
+
       exit(status);
     }
 
