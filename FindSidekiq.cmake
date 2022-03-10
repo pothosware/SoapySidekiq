@@ -10,12 +10,12 @@ if(NOT Sidekiq_FOUND)
     find_path(Sidekiq_INCLUDE_DIR
             NAMES sidekiq_api.h
             HINTS ${Sidekiq_PKG_INCLUDE_DIRS} $ENV{Sidekiq_DIR}/include
-            PATHS /usr/local/include /usr/include /opt/include /opt/local/include)
+            PATHS ~/sidekiq_sdk_current/sidekiq_core/inc/ /usr/local/include /usr/include /opt/include /opt/local/include)
 
     find_library(Sidekiq_LIBRARY
             NAMES libsidekiq__x86_64.gcc.a
             HINTS ${Sidekiq_PKG_LIBRARY_DIRS} $ENV{Sidekiq_DIR}/include
-            PATHS /usr/local/lib /usr/lib /opt/lib /opt/local/lib)
+            PATHS /home/dhelm/sidekiq_sdk_current/lib/ /usr/local/lib /usr/lib /opt/lib /opt/local/lib)
 
     set(Sidekiq_LIBRARIES ${Sidekiq_LIBRARY})
     set(Sidekiq_INCLUDE_DIRS ${Sidekiq_INCLUDE_DIR})

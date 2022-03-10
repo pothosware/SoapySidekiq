@@ -3,6 +3,8 @@
 #include <unistd.h>
 #include "SoapySidekiq.hpp"
 #include <SoapySDR/Registry.hpp>
+#include <iostream>
+#include <string>
 
 static std::vector<SoapySDR::Kwargs> findSidekiq(const SoapySDR::Kwargs &args) {
   std::vector<SoapySDR::Kwargs> results;

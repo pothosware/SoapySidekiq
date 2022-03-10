@@ -1,0 +1,100 @@
+#!/usr/bin/env python3
+
+"""
+Transmits a tone out of the AIR-T. The script will create a tone segment that
+is infinity repeatable without a phase discontinuity and with 8 samples per
+period. The TX LO of the AIR-T is set such that the baseband frequency of the
+generated tone plus the LO frequency will transmit at the desired RF.
+"""
+import sys
+import time
+import numpy as np
+from matplotlib import pyplot as plt
+import argparse
+import SoapySDR
+from SoapySDR import *
+
+
+
+
+def rcv(freq, chan=0, fs=31.25, gain=20, buff_len=16384):
+    sdr = SoapySDR.Device()  
+
+    # Setup Radio
+    sdr.setSampleRate(SOAPY_SDR_RX, chan, fs)  # Set sample rate
+    sdr.setBandwidth(SOAPY_SDR_RX, chan, fs)  
+    sdr.setFrequency(SOAPY_SDR_RX, chan, freq)  # Tune the LO
+   # sdr.setGain(SOAPY_SDR_RX, chan, gain)
+
+    rx_stream = sdr.setupStream(SOAPY_SDR_RX, SOAPY_SDR_CS16, [chan])
+    buff_len=(sdr.getStreamMTU(rx_stream))
+    N = buff_len
+
+    
+    # Create data buffer and start streaming samples to it
+    rx_buff = np.empty(2 * N, np.int16)                 # Create memory buffer for data stream
+    sdr.activateStream(rx_stream)  # this turns the radio on
+
+    # Read the samples from the data buffer
+    sr = sdr.readStream(rx_stream, [rx_buff], N)
+    rc = sr.ret # number of samples read or the error code
+    assert rc == buff_len, 'Error Reading Samples from Device (error code = %d)!' % rc
+    print("received samples", rc)
+
+    print("Stop streaming")
+    sdr.deactivateStream(tx_stream)
+    sdr.closeStream(tx_stream)
+
+    ############################################################################################
+    # Plot Signal
+    ############################################################################################
+    # Convert interleaved shorts (received signal) to numpy.complex64 normalized between [-1, 1]
+    s0 = rx_buff.astype(float) / np.power(2.0, rx_bits-1)
+    s = (s0[::2] + 1j*s0[1::2])
+
+    # Take the fourier transform of the signal and perform FFT Shift
+    S = np.fft.fftshift(np.fft.fft(s, N) / N)
+
+    # Time Domain Plot
+    plt.figure(num=1, figsize=(12.95, 7.8), dpi=150)
+    plt.subplot(211)
+    t_us = np.arange(N) / fs / 1e-6
+    plt.plot(t_us, s.real, 'k', label='I')
+    plt.plot(t_us, s.imag, 'r', label='Q')
+    plt.xlim(t_us[0], t_us[-1])
+    plt.xlabel('Time (us)')
+    plt.ylabel('Normalized Amplitude')
+
+    # Frequency Domain Plot
+    plt.subplot(212)
+    f_ghz = (freq + (np.arange(0, fs, fs/N) - (fs/2) + (fs/N))) / 1e9
+    plt.plot(f_ghz, 20*np.log10(np.abs(S)))
+    plt.xlim(f_ghz[0], f_ghz[-1])
+    plt.ylim(-100, 0)
+    plt.xlabel('Frequency (GHz)')
+    plt.ylabel('Amplitude (dBFS)')
+    plt.show()
+
+
+def parse_command_line_arguments():
+    """ Create command line options for transmit function """
+    help_formatter = argparse.ArgumentDefaultsHelpFormatter
+    parser = argparse.ArgumentParser(description='Receive and plot samples',
+                                     formatter_class=help_formatter)
+    parser.add_argument('-f', type=float, required=False, dest='freq',
+                        default=100e6, help='Lo Frequency')
+    parser.add_argument('-c', type=int, required=False, dest='chan',
+                        default=0, help='RX Channel Number [0 or 1]')
+    parser.add_argument('-s', type=float, required=False, dest='fs',
+                        default=31.25e6, help='RX Sample Rate')
+    parser.add_argument('-g', type=float, required=False, dest='gain',
+                        default=0, help=' gain')
+    parser.add_argument('-n', type=int, required=False, dest='buff_len',
+                        default=16384, help='RX Buffer Size')
+    return parser.parse_args(sys.argv[1:])
+
+
+if __name__ == '__main__':
+    SoapySDR.setLogLevel(SOAPY_SDR_TRACE)
+    pars = parse_command_line_arguments()
+    rcv(pars.freq, pars.chan, pars.fs, pars.gain, pars.buff_len)

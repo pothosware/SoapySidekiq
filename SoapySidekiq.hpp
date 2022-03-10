@@ -17,8 +17,10 @@
 #include <SoapySDR/Types.hpp>
 
 #define DEFAULT_BUFFER_LENGTH     (65536)
-#define DEFAULT_NUM_BUFFERS       (10)
+#define DEFAULT_NUM_BUFFERS       (30)
 #define DEFAULT_ELEMS_PER_SAMPLE  (2)
+#define DEFAULT_TX_BUFFER_SIZE    (8188)
+#define MAX_TX_BUFFERS            (30)
 
 class SoapySidekiq : public SoapySDR::Device {
  public:
@@ -224,17 +226,22 @@ class SoapySidekiq : public SoapySDR::Device {
   //  tx
   uint64_t tx_center_frequency;
   uint32_t tx_sample_rate, tx_bandwidth;
+  uint32_t tx_underruns;
 
   //  setting
   bool iq_swap;
 
-  // buffer
+  // RX buffer
   size_t numBuffers;
   unsigned int bufferElems = DEFAULT_BUFFER_LENGTH;
   const int elementsPerSample = DEFAULT_ELEMS_PER_SAMPLE;
   size_t bufferLength;
   std::atomic_uint shortsPerWord;
   std::atomic_bool useShort;
+
+  // TX buffer
+  skiq_tx_block_t *p_block[MAX_TX_BUFFERS];
+  uint32_t currentBuffIndex;
 
  public:
   //  receive thread

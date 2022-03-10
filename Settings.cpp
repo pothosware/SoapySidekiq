@@ -25,7 +25,7 @@ SoapySidekiq::SoapySidekiq(const SoapySDR::Kwargs &args) {
   bufferedElems = 0;
   _currentBuff = 0;
   resetBuffer = false;
-  rx_running = true;
+  rx_running = false;
   useShort = true;
 
   if (args.count("card") != 0) {
@@ -50,6 +50,10 @@ SoapySidekiq::SoapySidekiq(const SoapySDR::Kwargs &args) {
   /* init sidekiq */
   if (skiq_init(type, level, &card, 1) != 0) {
     SoapySDR_logf(SOAPY_SDR_ERROR, "Failure: skiq_init (card %d)", card);
+  }
+  /* set iq order to iq instead of qi */
+  if (skiq_write_iq_order_mode(card, skiq_iq_order_iq) != 0) {
+    SoapySDR_logf(SOAPY_SDR_ERROR, "Failure: setting iq order (card %d)", card);
   }
 }
 
@@ -177,9 +181,21 @@ bool SoapySidekiq::getGainMode(const int direction, const size_t channel) const 
 
 void SoapySidekiq::setGain(const int direction, const size_t channel, const double value) {
   if (direction == SOAPY_SDR_RX) {
-    if (skiq_write_rx_gain(card, rx_hdl, value) != 0) {
-      SoapySDR_logf(SOAPY_SDR_ERROR, "Failure: skiq_write_rx_gain (card %d, value %d)", card, value);
+    uint16_t gain = (uint16_t)(abs(value)); 
+    if (skiq_write_rx_gain(card, rx_hdl, gain) != 0) {
+      SoapySDR_logf(SOAPY_SDR_ERROR, "Failure: skiq_write_rx_gain (card %d, value %d)", card, gain);
+    SoapySDR_logf(SOAPY_SDR_DEBUG, "Setting rx gain: %d", gain);
     }
+  }
+
+  /* For TX gain is attenuation, someone may send that gain as negative or positive 
+   * Assume it is attenuation and take the abs() of the number */
+  if (direction == SOAPY_SDR_TX) {
+    uint16_t attenuation = (uint16_t)(abs(value)); 
+    if (skiq_write_tx_attenuation(card, tx_hdl, attenuation) != 0) {
+      SoapySDR_logf(SOAPY_SDR_ERROR, "Failure: skiq_write_tx_gain (card %d, value %d)", card, attenuation);
+    }
+    SoapySDR_logf(SOAPY_SDR_DEBUG, "Setting tx attenuation: %d", attenuation);
   }
 }
 
@@ -220,7 +236,7 @@ void SoapySidekiq::setFrequency(const int direction,
   if (direction == SOAPY_SDR_RX && name == "RF") {
     rx_center_frequency = (uint64_t) frequency;
     resetBuffer = true;
-    SoapySDR_logf(SOAPY_SDR_DEBUG, "Setting rx center freq: %d", rx_center_frequency);
+    SoapySDR_logf(SOAPY_SDR_DEBUG, "Setting rx center freq: %ld", rx_center_frequency);
     if (skiq_write_rx_LO_freq(card, rx_hdl, rx_center_frequency) != 0) {
       SoapySDR_logf(SOAPY_SDR_ERROR,
                     "Failure: skiq_write_rx_LO_freq (card %d, frequency %d)",
