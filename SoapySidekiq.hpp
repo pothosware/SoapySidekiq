@@ -224,6 +224,8 @@ class SoapySidekiq : public SoapySDR::Device {
   uint32_t rx_sample_rate, rx_bandwidth;
   uint32_t rx_block_size_in_words;
   uint32_t rx_block_size_in_bytes;
+  uint32_t rx_payload_size_in_bytes;
+  uint32_t rx_payload_size_in_words;
 
   //  tx
   uint64_t tx_center_frequency;

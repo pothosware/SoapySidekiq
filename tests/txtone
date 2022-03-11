@@ -46,7 +46,7 @@ def transmit_tone(freq, chan=0, fs=31.25, attenuation=20, buff_len=16384):
     bb_freq = fs / 4  # baseband frequency of tone
     tx_buff = make_tone(buff_len, bb_freq, fs)
     lo_freq = freq   # Calc LO freq to put tone at tone_rf
-    print("lo_freq", lo_freq, "bbfreq ", bb_freq, "buff_len", buff_len, "fs", fs, )
+    print("lo_freq", lo_freq, "tone_freq ", bb_freq, "buff_len", buff_len, "fs", fs, )
 
     # Setup Radio
     sdr.setSampleRate(SOAPY_SDR_TX, chan, fs)  # Set sample rate
@@ -91,7 +91,7 @@ def parse_command_line_arguments():
     parser.add_argument('-c', type=int, required=False, dest='chan',
                         default=0, help='TX Channel Number [0 or 1]')
     parser.add_argument('-s', type=float, required=False, dest='fs',
-                        default=31.25e6, help='TX Sample Rate')
+                        default=10e6, help='TX Sample Rate')
     parser.add_argument('-a', type=float, required=False, dest='attenuation',
                         default=0, help='TX attenuation')
     parser.add_argument('-n', type=int, required=False, dest='buff_len',
