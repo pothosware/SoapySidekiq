@@ -19,14 +19,7 @@ SoapySidekiq::SoapySidekiq(const SoapySDR::Kwargs &args) {
   iq_swap = false;
 
   //  this may change later according to format
-  shortsPerWord = 1;
-  bufferLength = bufferElems * elementsPerSample * shortsPerWord;
-
-  bufferedElems = 0;
-  _currentBuff = 0;
-  resetBuffer = false;
   rx_running = false;
-  useShort = true;
 
   if (args.count("card") != 0) {
     try {
@@ -55,6 +48,7 @@ SoapySidekiq::SoapySidekiq(const SoapySDR::Kwargs &args) {
   if (skiq_write_iq_order_mode(card, skiq_iq_order_iq) != 0) {
     SoapySDR_logf(SOAPY_SDR_ERROR, "Failure: setting iq order (card %d)", card);
   }
+  rx_block_size_in_words = 0;
 }
 
 SoapySidekiq::~SoapySidekiq(void) {
@@ -235,7 +229,6 @@ void SoapySidekiq::setFrequency(const int direction,
                                 const SoapySDR::Kwargs &args) {
   if (direction == SOAPY_SDR_RX && name == "RF") {
     rx_center_frequency = (uint64_t) frequency;
-    resetBuffer = true;
     SoapySDR_logf(SOAPY_SDR_DEBUG, "Setting rx center freq: %ld", rx_center_frequency);
     if (skiq_write_rx_LO_freq(card, rx_hdl, rx_center_frequency) != 0) {
       SoapySDR_logf(SOAPY_SDR_ERROR,
@@ -247,7 +240,6 @@ void SoapySidekiq::setFrequency(const int direction,
 
   if (direction == SOAPY_SDR_TX && name == "RF") {
     tx_center_frequency = (uint64_t) frequency;
-    resetBuffer = true;
     SoapySDR_logf(SOAPY_SDR_DEBUG, "Setting tx center freq: %d", tx_center_frequency);
     if (skiq_write_tx_LO_freq(card, tx_hdl, tx_center_frequency) != 0) {
       SoapySDR_logf(SOAPY_SDR_ERROR,
@@ -325,7 +317,6 @@ SoapySDR::ArgInfoList SoapySidekiq::getFrequencyArgsInfo(const int direction, co
 void SoapySidekiq::setSampleRate(const int direction, const size_t channel, const double rate) {
   if (direction == SOAPY_SDR_RX) {
     rx_sample_rate = (uint32_t) rate;
-    resetBuffer = true;
     SoapySDR_logf(SOAPY_SDR_DEBUG, "Setting rx sample rate: %d", rx_sample_rate);
     if (skiq_write_rx_sample_rate_and_bandwidth(card, rx_hdl, rx_sample_rate, rx_bandwidth) != 0) {
       SoapySDR_logf(SOAPY_SDR_ERROR,
@@ -338,7 +329,6 @@ void SoapySidekiq::setSampleRate(const int direction, const size_t channel, cons
 
   if (direction == SOAPY_SDR_TX) {
     tx_sample_rate = (uint32_t) rate;
-    resetBuffer = true;
     SoapySDR_logf(SOAPY_SDR_DEBUG, "Setting tx sample rate: %d", tx_sample_rate);
     if (skiq_write_tx_sample_rate_and_bandwidth(card, tx_hdl, tx_sample_rate, tx_bandwidth) != 0) {
       SoapySDR_logf(SOAPY_SDR_ERROR,

@@ -16,11 +16,11 @@
 #include <SoapySDR/Logger.hpp>
 #include <SoapySDR/Types.hpp>
 
-#define DEFAULT_BUFFER_LENGTH     (65536)
 #define DEFAULT_NUM_BUFFERS       (30)
 #define DEFAULT_ELEMS_PER_SAMPLE  (2)
-#define DEFAULT_TX_BUFFER_SIZE    (8188)
-#define MAX_TX_BUFFERS            (30)
+#define DEFAULT_TX_BUFFER_LENGTH  (8188)
+#define DEFAULT_SLEEP_US          (100)
+#define SLEEP_1SEC                (1 * 1000000)
 
 class SoapySidekiq : public SoapySDR::Device {
  public:
@@ -222,6 +222,8 @@ class SoapySidekiq : public SoapySDR::Device {
   //  rx
   uint64_t rx_center_frequency;
   uint32_t rx_sample_rate, rx_bandwidth;
+  uint32_t rx_block_size_in_words;
+  uint32_t rx_block_size_in_bytes;
 
   //  tx
   uint64_t tx_center_frequency;
@@ -232,34 +234,19 @@ class SoapySidekiq : public SoapySDR::Device {
   bool iq_swap;
 
   // RX buffer
-  size_t numBuffers;
-  unsigned int bufferElems = DEFAULT_BUFFER_LENGTH;
-  const int elementsPerSample = DEFAULT_ELEMS_PER_SAMPLE;
-  size_t bufferLength;
-  std::atomic_uint shortsPerWord;
-  std::atomic_bool useShort;
+  skiq_rx_block_t *p_rx_block[DEFAULT_NUM_BUFFERS];
+  uint32_t rxReadIndex;
+  uint32_t rxWriteIndex;
+  uint32_t p_rx_block_index;
 
   // TX buffer
-  skiq_tx_block_t *p_block[MAX_TX_BUFFERS];
-  uint32_t currentBuffIndex;
+  skiq_tx_block_t *p_tx_block[DEFAULT_NUM_BUFFERS];
+  uint32_t currTXBuffIndex;
 
  public:
   //  receive thread
   std::thread _rx_receive_thread;
   void rx_receive_operation(void);
-
-  std::mutex _buf_mutex;
-  std::condition_variable _buf_cond;
-
-  std::vector<std::vector<int16_t> > _buffs;
-  size_t _buf_head;
-  size_t _buf_tail;
-  std::atomic<size_t> _buf_count;
-  int16_t *_currentBuff;
-  std::atomic<bool> _overflowEvent;
-  size_t _currentHandle;
-  size_t bufferedElems;
-  std::atomic<bool> resetBuffer;
 
   static std::vector<SoapySDR::Kwargs> sidekiq_devices;
   static bool rx_running;

@@ -8,7 +8,7 @@
 
 static std::vector<SoapySDR::Kwargs> findSidekiq(const SoapySDR::Kwargs &args) {
   std::vector<SoapySDR::Kwargs> results;
-
+  
   uint8_t number_of_cards = 0;
   uint8_t card_list[SKIQ_MAX_NUM_CARDS];
   char *serial_str;

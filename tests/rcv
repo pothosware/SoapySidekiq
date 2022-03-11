@@ -21,10 +21,10 @@ rx_bits = 12
 ############################################################################################
 # Receive Signal
 ############################################################################################
-
+print("setLogLevel", SOAPY_SDR_TRACE)
 SoapySDR.setLogLevel(SOAPY_SDR_TRACE)
-#  Initialize the AIR-T receiver using SoapyAIRT
-sdr = SoapySDR.Device(dict(driver="sidekiq", loglevel="7"))       # Create AIR-T instance
+
+sdr = SoapySDR.Device() 
 sdr.setSampleRate(SOAPY_SDR_RX, rx_chan, fs)          # Set sample rate
 sdr.setBandwidth(SOAPY_SDR_RX, rx_chan, fs)          # Set sample rate
 #sdr.setGainMode(SOAPY_SDR_RX, rx_chan, use_agc)       # Set the gain mode
@@ -39,7 +39,8 @@ sdr.activateStream(rx_stream)  # this turns the radio on
 sr = sdr.readStream(rx_stream, [rx_buff], N, timeoutUs=timeout_us)
 rc = sr.ret # number of samples read or the error code
 assert rc == N, 'Error Reading Samples from Device (error code = %d)!' % rc
-print(rc)
+print("samples read",rc)
+print(rx_buff)
 
 # Stop streaming
 sdr.deactivateStream(rx_stream)
