@@ -6,8 +6,8 @@ import datetime
 import argparse
 
 import numpy as np
-from matplotlib import pyplot as plt
 import SoapySDR
+print(SoapySDR.__file__)
 from SoapySDR import *
 
 def handler(signum, frame):
@@ -127,7 +127,6 @@ def main(rx_chan, fs, bw, freq, gain, poll_time):
         
         row = now + ', '  + "{:.0f}".format(peak_freq[0]) + ', ' + "{:.0f}".format(maxElement) + ' \n'
         f.write(row)
-        print(header)
         print(row)
         time.sleep(poll_time)
 

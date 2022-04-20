@@ -17,6 +17,8 @@ if (NOT Sidekiq_FOUND)
 endif ()
 message(STATUS "Sidekiq_INCLUDE_DIRS - ${Sidekiq_INCLUDE_DIRS}")
 message(STATUS "Sidekiq_LIBRARIES - ${Sidekiq_LIBRARIES}")
+message(STATUS "Sidekiq_EPIQ_USB - ${Sidekiq_EPIQ_USB}")
+message(STATUS "Sidekiq_EPIQ_GLIB - ${Sidekiq_EPIQ_GLIB}")
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 include_directories(${Sidekiq_INCLUDE_DIRS})
@@ -58,7 +60,9 @@ SOAPY_SDR_MODULE_UTIL(
     LIBRARIES
         ${Sidekiq_LIBRARIES}
         ${OTHER_LIBS}
-        /usr/lib/epiq/libusb-1.0.so
-        /usr/lib/epiq/libglib-2.0.so
+        ${Sidekiq_EPIQ_USB}
+        ${Sidekiq_EPIQ_GLIB}
+        #        /usr/lib/epiq/libusb-1.0.so
+        #/usr/lib/epiq/libglib-2.0.so
         -lrt
 )
