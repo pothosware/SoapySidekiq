@@ -174,12 +174,15 @@ bool SoapySidekiq::getGainMode(const int direction, const size_t channel) const 
 }
 
 void SoapySidekiq::setGain(const int direction, const size_t channel, const double value) {
+    int status;
+
   if (direction == SOAPY_SDR_RX) {
     uint16_t gain = (uint16_t)(abs(value)); 
-    if (skiq_write_rx_gain(card, rx_hdl, gain) != 0) {
-      SoapySDR_logf(SOAPY_SDR_ERROR, "Failure: skiq_write_rx_gain (card %d, value %d)", card, gain);
-    SoapySDR_logf(SOAPY_SDR_DEBUG, "Setting rx gain: %d", gain);
+    status = skiq_write_rx_gain(card, rx_hdl, gain) ; 
+    if (status != 0) {
+      SoapySDR_logf(SOAPY_SDR_ERROR, "Failure: skiq_write_rx_gain (card %d, value %d) status %d", card, gain, status);
     }
+    SoapySDR_logf(SOAPY_SDR_DEBUG, "Setting rx gain: %d", gain);
   }
 
   /* For TX gain is attenuation, someone may send that gain as negative or positive 
