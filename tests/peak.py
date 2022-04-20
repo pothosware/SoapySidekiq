@@ -15,9 +15,8 @@ def handler(signum, frame):
 
     print("ending...")
     running = False
-    # Stop streaming
 
-def main(rx_chan, fs, bw, freq, gain):
+def main(rx_chan, fs, bw, freq, gain, poll_time):
     global running
     ############################################################################################
     # Settings
@@ -30,7 +29,7 @@ def main(rx_chan, fs, bw, freq, gain):
     rx_bits = 12
     lo_freq = freq + (bw/2)
 
-    header = 'Time, Peak Frequency MHz, Peak Power dB \n\n'
+    header = 'Time, Peak Frequency MHz, Peak Power dB \n'
 
     signal.signal(signal.SIGINT, handler)
 
@@ -49,14 +48,26 @@ def main(rx_chan, fs, bw, freq, gain):
     out = now + ', ' 
     row = 'time,' +  now  + '\n'
     f.write(row)
+    print(row)
     row = 'sample rate, ' + "{:.0f}".format(fs) + '\n'
     f.write(row)
+    print(row)
     row = 'Bandwidth, ' + "{:.0f}".format(bw) + '\n'
     f.write(row)
+    print(row)
+    row = 'Gain, ' + "{:d}".format(gain) + '\n'
+    f.write(row)
+    print(row)
+    row = 'Poll Time, ' + "{:d}".format(poll_time) + '\n'
+    f.write(row)
+    print(row)
     row = 'Start Frequency, ' + "{:.0f}".format(freq) + '\n'
     f.write(row)
+    print(row)
     row = 'End Frequency, ' + "{:.0f}".format(freq+bw) + '\n\n'
     f.write(row)
+    print(row)
+
     row = "\nSweep From " +  str(int(freq)) + " to " + str( int(freq + bw)) +  "\n"
     print(row)
 
@@ -78,12 +89,7 @@ def main(rx_chan, fs, bw, freq, gain):
     sdr.setSampleRate(SOAPY_SDR_RX, rx_chan, fs)          # Set sample rate
     sdr.setBandwidth(SOAPY_SDR_RX, rx_chan, bw)          # Set sample rate
 
-    if gain == 0:
-        sdr.setGainMode(SOAPY_SDR_RX, rx_chan, True)       
-    else:
-        sdr.setGainMode(SOAPY_SDR_RX, rx_chan, False) 
-        sdr.setGain(SOAPY_SDR_RX, rx_chan, gain)
-
+    sdr.setGain(SOAPY_SDR_RX, rx_chan, gain)
 
     sdr.setFrequency(SOAPY_SDR_RX, rx_chan, lo_freq)         # Tune the LO
 
@@ -121,8 +127,9 @@ def main(rx_chan, fs, bw, freq, gain):
         
         row = now + ', '  + "{:.0f}".format(peak_freq[0]) + ', ' + "{:.0f}".format(maxElement) + ' \n'
         f.write(row)
+        print(header)
         print(row)
-        time.sleep(3)
+        time.sleep(poll_time)
 
     sdr.deactivateStream(rx_stream)
     sdr.closeStream(rx_stream)
@@ -142,13 +149,15 @@ def parse_command_line_arguments():
                         default=8e6, help='Bandwidth')
     parser.add_argument('-f', type=float, required=False, dest='freq',
                         default=100e6, help='Starting Frequency')
-    parser.add_argument('-g', type=float, required=False, dest='gain',
+    parser.add_argument('-g', type=int, required=False, dest='gain',
                         default=0, help='Gain (0 for automatic)')
+    parser.add_argument('-p', type=int, required=False, dest='poll',
+                        default=2, help='Time (in seconds) between frequency polls')
     return parser.parse_args(sys.argv[1:])
 
 
 if __name__ == '__main__':
 #    SoapySDR.setLogLevel(SOAPY_SDR_DEBUG)
     pars = parse_command_line_arguments()
-    main(pars.chan, pars.fs, pars.bw, pars.freq, pars.gain)
+    main(pars.chan, pars.fs, pars.bw, pars.freq, pars.gain, pars.poll)
 
