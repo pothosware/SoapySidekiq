@@ -60,5 +60,6 @@ SOAPY_SDR_MODULE_UTIL(
         ${OTHER_LIBS}
         /usr/lib/epiq/libusb-1.0.so
         /usr/lib/epiq/libglib-2.0.so
+        /usr/lib/epiq/libiio.so
         -lrt
 )
