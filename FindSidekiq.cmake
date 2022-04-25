@@ -23,9 +23,11 @@ if(NOT Sidekiq_FOUND)
         set (libname  "libsidekiq__x86_64.gcc.a")
     else()
         set(libname  "libsidekiq__aarch64.gcc6.3.a")
+        set(OTHER_LIBS "/usr/lib/epiq/libiio.so.0"
     endif()
 
     message(STATUS "library is ${libname} ")
+    message(STATUS "other_libs is ${OTHER_LIBS} ")
 
     find_library(Sidekiq_LIBRARY
         NAMES ${libname}
