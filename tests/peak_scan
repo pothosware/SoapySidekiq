@@ -6,11 +6,48 @@ import time
 import signal
 import datetime
 import argparse
+import serial
+import pynmea2
 
 import numpy as np
 from matplotlib import pyplot as plt
 import SoapySDR
 from SoapySDR import *
+
+def get_gps():
+    trying = True
+    fix = "no"
+    lat = "0";
+    lat_dir = ""
+    lon = "0"
+    lon_dir = ""
+
+
+    while(trying):
+        try:
+            line = ser.readline()
+            newline = str(line, 'utf-8', errors='ignore')
+            if "GGA" in newline:
+                data = pynmea2.parse(newline)
+                timestamp = data.timestamp
+                lat, lon, alt = data.latitude, data.longitude, data.altitude
+                lat_dir, lon_dir, num_sats = data.lat_dir, data.lon_dir, data.num_sats
+                gps_qual = data.gps_qual
+                if gps_qual != 0:
+                    fix = "yes"
+                else:
+                    fix = "no"
+        except serial.SerialException as e:
+            trying = False;
+
+        except serial.SerialTimeoutException as e:
+            trying = False;
+
+    ret_lat = lat+lat_dir
+    ret_lon = lon+lon_dir
+    print(fix, ret_lat, ret_lon)
+    return fix, ret_lat, ret_lon 
+
 
 def handler(signum, frame):
     global running 
@@ -26,6 +63,8 @@ def main(rx_chan, fs, bw, freq):
     ############################################################################################
     # Settings
     ############################################################################################
+    ser = serial.Serial('/dev/ttymxc0', 9600, timeout=2.0)
+
     running = True
     # Data transfer settings
     N = 16384               # Number of complex samples per transfer
@@ -62,6 +101,7 @@ def main(rx_chan, fs, bw, freq):
     rx_stream = sdr.setupStream(SOAPY_SDR_RX, SOAPY_SDR_CS16, [rx_chan])  # Setup data stream
 
     while running:
+        fix, lat, lon = read_gps(ser);
         sdr.activateStream(rx_stream)  # this turns the radio on
         # Read the samples from the data buffer
         sr = sdr.readStream(rx_stream, [rx_buff], N, timeoutUs=timeout_us)
@@ -95,7 +135,6 @@ def main(rx_chan, fs, bw, freq):
         now =    datetime.datetime.now().strftime("%d-%b-%Y (%H:%M:%S.%f)")
         print(now)
         
-#        row = now + ', ' + str(fs) + ', ' + str(bw) + ', ' + str(freq) + ', ' + str(peak_freq[0]) + ', ' + str(maxElement) + ' \n'
         row = now + ', ' + "{:.0f}".format(fs) + ', ' + "{:.0f}".format(bw) + ', ' + "{:.0f}".format(freq) + ', ' + "{:.0f}".format(peak_freq[0]) + ', ' + "{:.0f}".format(maxElement) + ' \n'
         f.write(row)
         time.sleep(3)

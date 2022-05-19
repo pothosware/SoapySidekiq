@@ -46,10 +46,10 @@ def main(rx_chan, fs, bw, freq, gain, poll_time):
 
     now =    datetime.datetime.now().strftime("%d-%b-%Y (%H:%M:%S.%f)")
     out = now + ', ' 
-    row = 'time,' +  now  + '\n'
+    row = 'Time,' +  now  + '\n'
     f.write(row)
     print(row)
-    row = 'sample rate, ' + "{:.0f}".format(fs) + '\n'
+    row = 'Sample Rate, ' + "{:.0f}".format(fs) + '\n'
     f.write(row)
     print(row)
     row = 'Bandwidth, ' + "{:.0f}".format(bw) + '\n'
