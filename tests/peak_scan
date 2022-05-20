@@ -14,14 +14,14 @@ from matplotlib import pyplot as plt
 import SoapySDR
 from SoapySDR import *
 
-def get_gps():
+def read_gps(ser):
     trying = True
     fix = "no"
     lat = "0";
     lat_dir = ""
     lon = "0"
     lon_dir = ""
-
+    timestamp = ""
 
     while(trying):
         try:
@@ -35,18 +35,20 @@ def get_gps():
                 gps_qual = data.gps_qual
                 if gps_qual != 0:
                     fix = "yes"
+                    trying = False;
                 else:
                     fix = "no"
+                    trying = False;
+
         except serial.SerialException as e:
             trying = False;
 
         except serial.SerialTimeoutException as e:
             trying = False;
 
-    ret_lat = lat+lat_dir
-    ret_lon = lon+lon_dir
-    print(fix, ret_lat, ret_lon)
-    return fix, ret_lat, ret_lon 
+    ret_lat = "{:4.6}".format(lat) + " " +lat_dir
+    ret_lon = "{:4.6}".format(lon) + " " + lon_dir
+    return fix, ret_lat, ret_lon, str(timestamp) 
 
 
 def handler(signum, frame):
@@ -59,11 +61,12 @@ def handler(signum, frame):
     sdr.closeStream(rx_stream)
     exit(1)
 
-def main(rx_chan, fs, bw, freq):
+def main(rx_chan, fs, bw, freq, port, looptime):
     ############################################################################################
     # Settings
     ############################################################################################
-    ser = serial.Serial('/dev/ttymxc0', 9600, timeout=2.0)
+    print(port) 
+    ser = serial.Serial(port, BAUD, timeout=2.0)
 
     running = True
     # Data transfer settings
@@ -72,7 +75,8 @@ def main(rx_chan, fs, bw, freq):
     timeout_us = int(10e6)
     rx_bits = 12
 
-    header = ['Time', 'Sample Rate', 'Bandwidth', 'Center Frequency', 'Peak Frequency', 'Peak Power']
+    header = "Time(UTC), GPS Sat Lock, Latitude, Longitude, Sample Rate, Bandwidth, Center Frequency, Peak Frequency, Peak Power\r\n"
+
 
     signal.signal(signal.SIGINT, handler)
 
@@ -87,11 +91,9 @@ def main(rx_chan, fs, bw, freq):
 
     f = open('output.csv', 'w', encoding='UTF8') 
 
-    writer = csv.writer(f)
+    f.write(header)
 
-    writer.writerow(header)
-
-    SoapySDR.setLogLevel(SOAPY_SDR_DEBUG)
+    SoapySDR.setLogLevel(SOAPY_SDR_ERROR)
 
     sdr.setSampleRate(SOAPY_SDR_RX, rx_chan, fs)          # Set sample rate
     sdr.setBandwidth(SOAPY_SDR_RX, rx_chan, bw)          # Set sample rate
@@ -101,7 +103,6 @@ def main(rx_chan, fs, bw, freq):
     rx_stream = sdr.setupStream(SOAPY_SDR_RX, SOAPY_SDR_CS16, [rx_chan])  # Setup data stream
 
     while running:
-        fix, lat, lon = read_gps(ser);
         sdr.activateStream(rx_stream)  # this turns the radio on
         # Read the samples from the data buffer
         sr = sdr.readStream(rx_stream, [rx_buff], N, timeoutUs=timeout_us)
@@ -123,21 +124,26 @@ def main(rx_chan, fs, bw, freq):
 
         # Get the maximum element from a Numpy array
         maxElement = np.amax(S1)
-        print('Max Power : ', maxElement)
 
         result = np.where(S1 == np.amax(S1))
 
         f_mhz = (freq + (np.arange(0, fs, fs/N) - (fs/2) + (fs/N))) / 1e6
         peak_freq = f_mhz[result[0]]
 
-        print('at Freq', peak_freq)
-       
-        now =    datetime.datetime.now().strftime("%d-%b-%Y (%H:%M:%S.%f)")
+        fix, lat, lon, timestamp = read_gps(ser);
+        now =    datetime.datetime.now().strftime("%d-%b-%Y (%H:%M:%S)")
         print(now)
+ 
+        print("gps lock:", fix, "latitude:", lat, "longitude:", lon)
+        print('Max Power: ', "{:.0f}".format(maxElement))
+        print('at Freq', "{:10.4f}".format(peak_freq[0]))
+      
         
-        row = now + ', ' + "{:.0f}".format(fs) + ', ' + "{:.0f}".format(bw) + ', ' + "{:.0f}".format(freq) + ', ' + "{:.0f}".format(peak_freq[0]) + ', ' + "{:.0f}".format(maxElement) + ' \n'
+        row = now + ', ' + fix + ', '  + lat + ', '  + lon + ', '  + "{:.0f}".format(fs) + ', ' + "{:.0f}".format(bw) + ', ' + "{:.0f}".format(freq) + ', ' + "{:10.4f}".format(peak_freq[0]) + ', ' + "{:.0f}".format(maxElement) + ' \n'
+#        print(row)
+        print("")
         f.write(row)
-        time.sleep(3)
+        time.sleep(looptime)
 
 
 def parse_command_line_arguments():
@@ -153,11 +159,20 @@ def parse_command_line_arguments():
                         default=10e6, help='Bandwidth')
     parser.add_argument('-f', type=float, required=False, dest='freq',
                         default=100e6, help='Lo Frequency')
+    parser.add_argument('-p', required=True, dest='port',
+                        default="Required", help='GPS Port')
+    parser.add_argument('-t', type=int, required=False, dest='looptime',
+                        default=3, help='Time between tests')
     return parser.parse_args(sys.argv[1:])
 
 
 if __name__ == '__main__':
-    SoapySDR.setLogLevel(SOAPY_SDR_DEBUG)
-    pars = parse_command_line_arguments()
-    main(pars.chan, pars.fs, pars.bw, pars.freq)
 
+    PORT = "/dev/ttymxc0"
+    BAUD = 9600
+
+    pars = parse_command_line_arguments()
+    print(pars.chan, pars.fs, pars.bw, pars.freq, pars.port, pars.looptime)
+
+    main(pars.chan, pars.fs, pars.bw, pars.freq, pars.port, pars.looptime)
+f
