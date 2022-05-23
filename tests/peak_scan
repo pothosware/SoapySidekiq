@@ -65,17 +65,22 @@ def main(rx_chan, fs, bw, freq, port, looptime):
     ############################################################################################
     # Settings
     ############################################################################################
-    print(port) 
-    ser = serial.Serial(port, BAUD, timeout=2.0)
+    if (port != None):
+        print(port) 
+        ser = serial.Serial(port, BAUD, timeout=2.0)
 
     running = True
+
     # Data transfer settings
     N = 16384               # Number of complex samples per transfer
     use_agc = False          # Use or don't use the AGC
     timeout_us = int(10e6)
     rx_bits = 12
-
-    header = "Time(UTC), GPS Sat Lock, Latitude, Longitude, Sample Rate, Bandwidth, Center Frequency, Peak Frequency, Peak Power\r\n"
+    
+    if (port == None):
+        header = "Time(UTC), Peak Frequency (MHz), Peak Power (dBm)\n"
+    else:
+        header = "Time(UTC), GPS Sat Lock, Latitude, Longitude, Peak Frequency (MHz), Peak Power (dBm)\n"
 
 
     signal.signal(signal.SIGINT, handler)
@@ -85,22 +90,29 @@ def main(rx_chan, fs, bw, freq, port, looptime):
     # Create data buffer and start streaming samples to it
     rx_buff = np.empty(2 * N, np.int16)                 # Create memory buffer for data stream
 
+    f = open('output.csv', 'w', encoding='UTF8') 
+    out = "Sample Rate, " + "{:10.0f}".format(fs) + "\n"
+    f.write(out)
+    out = "Bandwidth, "+ "{:10.0f}".format(bw) + "\n"
+
+    f.write(out)
+    out = "Freq, " + "{:10.0f}".format(freq) + "\n\n"
+
+    f.write(out)
+    f.write(header)
+
     ############################################################################################
     # Receive Signal
     ############################################################################################
-
-    f = open('output.csv', 'w', encoding='UTF8') 
-
-    f.write(header)
-
     SoapySDR.setLogLevel(SOAPY_SDR_ERROR)
 
-    sdr.setSampleRate(SOAPY_SDR_RX, rx_chan, fs)          # Set sample rate
-    sdr.setBandwidth(SOAPY_SDR_RX, rx_chan, bw)          # Set sample rate
-    sdr.setGain(SOAPY_SDR_RX, rx_chan, 0)       # Set the gain mode
-    sdr.setFrequency(SOAPY_SDR_RX, rx_chan, freq)         # Tune the LO
+    sdr.setSampleRate(SOAPY_SDR_RX, rx_chan, fs)            # Set sample rate
+    sdr.setBandwidth(SOAPY_SDR_RX, rx_chan, bw)             # Set sample rate
+    sdr.setGain(SOAPY_SDR_RX, rx_chan, 0)                   # Set the gain mode
+    sdr.setFrequency(SOAPY_SDR_RX, rx_chan, freq)           # Tune the LO
 
     rx_stream = sdr.setupStream(SOAPY_SDR_RX, SOAPY_SDR_CS16, [rx_chan])  # Setup data stream
+
 
     while running:
         sdr.activateStream(rx_stream)  # this turns the radio on
@@ -129,18 +141,22 @@ def main(rx_chan, fs, bw, freq, port, looptime):
 
         f_mhz = (freq + (np.arange(0, fs, fs/N) - (fs/2) + (fs/N))) / 1e6
         peak_freq = f_mhz[result[0]]
-
-        fix, lat, lon, timestamp = read_gps(ser);
+        
         now =    datetime.datetime.now().strftime("%d-%b-%Y (%H:%M:%S)")
         print(now)
  
-        print("gps lock:", fix, "latitude:", lat, "longitude:", lon)
-        print('Max Power: ', "{:.0f}".format(maxElement))
-        print('at Freq', "{:10.4f}".format(peak_freq[0]))
+        if (port != None):
+            fix, lat, lon, timestamp = read_gps(ser);
+            print("gps lock:", fix, "latitude:", lat, "longitude:", lon)
+
+        print('Max Power (dBm): ', "{:.0f}".format(maxElement))
+        print('at Freq (MHz):', "{:10.4f}".format(peak_freq[0]))
       
-        
-        row = now + ', ' + fix + ', '  + lat + ', '  + lon + ', '  + "{:.0f}".format(fs) + ', ' + "{:.0f}".format(bw) + ', ' + "{:.0f}".format(freq) + ', ' + "{:10.4f}".format(peak_freq[0]) + ', ' + "{:.0f}".format(maxElement) + ' \n'
-#        print(row)
+       
+        if (port == None):
+            row = now + ', ' + "{:10.4f}".format(peak_freq[0]) + ', ' + "{:.0f}".format(maxElement) + ' \n'
+        else:
+            row = now + ', ' + fix + ', '  + lat + ', '  + lon + ', '  + "{:10.4f}".format(peak_freq[0]) + ', ' + "{:.0f}".format(maxElement) + ' \n'
         print("")
         f.write(row)
         time.sleep(looptime)
@@ -158,9 +174,9 @@ def parse_command_line_arguments():
     parser.add_argument('-bs', type=float, required=False, dest='bw',
                         default=10e6, help='Bandwidth')
     parser.add_argument('-f', type=float, required=False, dest='freq',
-                        default=100e6, help='Lo Frequency')
-    parser.add_argument('-p', required=True, dest='port',
-                        default="Required", help='GPS Port')
+                        default=100e7, help='Lo Frequency')
+    parser.add_argument('-p', required=False, dest='port',
+                        default=None, help='GPS Port')
     parser.add_argument('-t', type=int, required=False, dest='looptime',
                         default=3, help='Time between tests')
     return parser.parse_args(sys.argv[1:])
