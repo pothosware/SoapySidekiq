@@ -13,7 +13,7 @@ from SoapySDR import *
 rx_chan = 0             # RX1 = 0, RX2 = 1
 N = 16384               # Number of complex samples per transfer
 fs = 30e6            # Radio sample Rate
-freq = 100e6            # LO tuning frequency in Hz
+freq = 100e7            # LO tuning frequency in Hz
 use_agc = False          # Use or don't use the AGC
 timeout_us = int(10e6)
 rx_bits = 12
