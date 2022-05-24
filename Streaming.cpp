@@ -166,7 +166,7 @@ SoapySDR::Stream *SoapySidekiq::setupStream(const int direction,
     }
     status = skiq_read_rx_block_size(card, stream_mode);
     if (status < 0) {
-      SoapySDR_logf(SOAPY_SDR_ERROR," failed to read RX block size status %d\n", rx_block_size_in_bytes);
+      SoapySDR_logf(SOAPY_SDR_ERROR," failed to read RX block size status %d, with status %d\n", rx_block_size_in_bytes, status);
       throw std::runtime_error("skiq_read_rx_block_size");
   }
   rx_block_size_in_bytes = status;
@@ -348,7 +348,7 @@ int SoapySidekiq::deactivateStream(SoapySDR::Stream *stream, const int flags, co
     /* stop tx streaming */
     status = skiq_stop_tx_streaming(card, tx_hdl) ;
     if (status != 0) {
-      SoapySDR_logf(SOAPY_SDR_ERROR, "Failure: skiq_stop_tx_streaming (card %d)", card);
+      SoapySDR_logf(SOAPY_SDR_ERROR, "Failure: skiq_stop_tx_streaming (card %d), status %d", card, status);
     }
   }
 
@@ -481,6 +481,12 @@ int SoapySidekiq::writeStream(SoapySDR::Stream *stream,
                               const long long timeNs,
                               const long timeoutUs) {
 
+  /* TODO: This assumes that the numElems can be placed evenly into a transmit buffer
+   * Make sure!
+   * 
+   */
+  int status = 0;
+
   SoapySDR_logf(SOAPY_SDR_TRACE, "writeStream");
   if (stream != TX_STREAM) {
     return SOAPY_SDR_NOT_SUPPORTED;
@@ -493,7 +499,7 @@ int SoapySidekiq::writeStream(SoapySDR::Stream *stream,
   uint32_t num_blocks = (data_bytes / (block_size_in_words * 4));
   if ((data_bytes % (block_size_in_words * 4)) != 0) {
     num_blocks++;
-  }
+  } 
 
   uint32_t i;
   uint32_t errors=0;
@@ -505,13 +511,17 @@ int SoapySidekiq::writeStream(SoapySDR::Stream *stream,
 //    printf("passed in pointer %p, calculated pointer %p\n", buffs[0], data_ptr);
     memcpy(p_tx_block[currTXBuffIndex]->data, data_ptr, (block_size_in_words * 4));
 
-    if (skiq_transmit(card, tx_hdl, p_tx_block[currTXBuffIndex], NULL) != 0) {
-      SoapySDR_logf(SOAPY_SDR_ERROR, "Failure: skiq_transmit (card %d)", card);
+    status = skiq_transmit(card, tx_hdl, p_tx_block[currTXBuffIndex], NULL);
+    if (status != 0) {
+      SoapySDR_logf(SOAPY_SDR_ERROR, "Failure: skiq_transmit (card %d) status %d", card, status);
     }
     currTXBuffIndex = (currTXBuffIndex + 1) % DEFAULT_NUM_BUFFERS;
   }
 
-  skiq_read_tx_num_underruns(card, tx_hdl, &errors);
+  status = skiq_read_tx_num_underruns(card, tx_hdl, &errors);
+   if (status != 0) {
+      SoapySDR_logf(SOAPY_SDR_ERROR, "Failure: skiq_read_tx_num_underruns (card %d) status %d", card, status);
+    }
 
   if (errors != tx_underruns){
       printf("underruns %d\n", errors);

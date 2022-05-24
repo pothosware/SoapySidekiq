@@ -14,32 +14,48 @@ SoapySDR::ArgInfo SoapySidekiq::getSensorInfo(const std::string &key) const {
 }
 
 std::string SoapySidekiq::readSensor(const std::string &key) const {
+  int status = 0;
+
   if (key.compare("temperature")) {
     int8_t temp = 0;
-    if (skiq_read_temp(card, &temp) != 0) {
-      SoapySDR_logf(SOAPY_SDR_ERROR, "Failure: skiq_read_temp (card %i)", card);
+    status = skiq_read_temp(card, &temp) ;
+    if (status  != 0) {
+      SoapySDR_logf(SOAPY_SDR_ERROR, "Failure: skiq_read_temp (card %i), status %d", card, status);
     }
     return std::to_string(temp);
   }
   bool supported = false;
   if (key.compare("acceleration")) {
-    if (!skiq_is_accel_supported(card, &supported)) {
-      SoapySDR_logf(SOAPY_SDR_WARNING, "Acceleration not supported by card %i", card);
+    status = skiq_is_accel_supported(card, &supported);
+    if (status  != 0) {
+      SoapySDR_logf(SOAPY_SDR_ERROR, "Failure: skiq-is_accel_supported (card %i), status %d", card, status);
+    }
+
+    if (!supported) {
+      SoapySDR_logf(SOAPY_SDR_WARNING, "Acceleration not supported by card %i, status %d", card, status);
       return "{}";
     }
-    if (skiq_write_accel_state(card, 1) != 0) {//  enable
-      SoapySDR_logf(SOAPY_SDR_ERROR, "Failure: skiq_write_accel_state (card %i)", card);
+
+    /* enable accel for the card */
+    status = skiq_write_accel_state(card, 1);
+    if (status != 0) {
+      SoapySDR_logf(SOAPY_SDR_ERROR, "Failure: skiq_write_accel_state (card %i), status %d", card, status);
       return "{}";
     }
+
     int16_t x_data = 0;
     int16_t y_data = 0;
     int16_t z_data = 0;
-    if (skiq_read_accel(card, &x_data, &y_data, &z_data) != 0) {
-      SoapySDR_logf(SOAPY_SDR_ERROR, "Failure: skiq_read_accel (card %i)", card);
+    status = skiq_read_accel(card, &x_data, &y_data, &z_data);
+    if (status != 0) {
+      SoapySDR_logf(SOAPY_SDR_ERROR, "Failure: skiq_read_accel (card %i), status %d", card, status);
       return "{}";
     }
-    if (skiq_write_accel_state(card, 0) != 0) { //  disable
-      SoapySDR_logf(SOAPY_SDR_ERROR, "Failure: skiq_write_accel_state (card %i)", card);
+
+    /* disable accel */
+    status = skiq_write_accel_state(card, 0);
+    if (status != 0) { 
+      SoapySDR_logf(SOAPY_SDR_ERROR, "Failure: skiq_write_accel_state (card %i), status %d", card, status);
       return "{}";
     };
     std::stringstream ss;

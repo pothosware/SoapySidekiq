@@ -7,6 +7,7 @@
 #include <string>
 
 static std::vector<SoapySDR::Kwargs> findSidekiq(const SoapySDR::Kwargs &args) {
+  int status = 0;
   std::vector<SoapySDR::Kwargs> results;
   
   uint8_t number_of_cards = 0;
@@ -16,8 +17,9 @@ static std::vector<SoapySDR::Kwargs> findSidekiq(const SoapySDR::Kwargs &args) {
   skiq_xport_type_t type = skiq_xport_type_auto;
 
   /* query the list of all Sidekiq cards on the PCIe interface */
-  if(skiq_get_cards(type, &number_of_cards, card_list) != 0){
-    SoapySDR_log(SOAPY_SDR_ERROR,  "Failure: skiq_get_cards");
+  status = skiq_get_cards(type, &number_of_cards, card_list);
+  if(status != 0){
+    SoapySDR_logf(SOAPY_SDR_ERROR,  "Failure: skiq_get_cards, status %d", status);
   }
 
   for (int i = 0; i < number_of_cards; i++) {
@@ -25,8 +27,9 @@ static std::vector<SoapySDR::Kwargs> findSidekiq(const SoapySDR::Kwargs &args) {
     bool deviceAvailable = false;
 
     /* determine the serial number based on the card number */
-    if(skiq_read_serial_string(i, &serial_str) != 0){
-      SoapySDR_log(SOAPY_SDR_ERROR,  "Failure: skiq_read_serial_string");
+    status = skiq_read_serial_string(i, &serial_str) ;
+    if(status != 0){
+      SoapySDR_logf(SOAPY_SDR_ERROR,  "Failure: skiq_read_serial_string, status %d", status);
     }
 
     /* get card availability */
