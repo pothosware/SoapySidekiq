@@ -23,7 +23,23 @@ rx_bits = 12
 ############################################################################################
 SoapySDR.setLogLevel(SOAPY_SDR_DEBUG)
 
+#if no args, then the code will find the first device available
 sdr = SoapySDR.Device() 
+
+#if you want to find a card by card number then
+"""
+args = dict(card = '1')
+sdr = SoapySDR.Device(args) 
+"""
+
+#if you want to find a card by serial number then
+"""
+args = dict(serial = '8N55')
+sdr = SoapySDR.Device(args) 
+"""
+
+
+
 sdr.setSampleRate(SOAPY_SDR_RX, rx_chan, fs)          # Set sample rate
 sdr.setBandwidth(SOAPY_SDR_RX, rx_chan, fs)          # Set sample rate
 sdr.setGain(SOAPY_SDR_RX, rx_chan, 0)       # Set the gain mode
