@@ -1,23 +1,31 @@
 #!/bin/python3
 
+import sys
+import time
 import numpy as np
 from matplotlib import pyplot as plt
 import SoapySDR
 print(SoapySDR, __file__)
 from SoapySDR import *
 
+np.set_printoptions(threshold=sys.maxsize)
+
 ############################################################################################
 # Settings
 ############################################################################################
 # Data transfer settings
 rx_chan = 0             # RX1 = 0, RX2 = 1
-N = 16384               # Number of complex samples per transfer
-#N = 2048
+#N = 16384               # Number of complex samples per transfer
+#N = 1018
+N = (1018 * 100) + 100
+#N = 500
 fs = 10e6            # Radio sample Rate
 freq = 100e6            # LO tuning frequency in Hz
 use_agc = False          # Use or don't use the AGC
 timeout_us = int(10e6)
-rx_bits = 12
+rx_resolution = 12
+max_data = (1 << (rx_resolution -1))-1
+print(max_data)
 
 ############################################################################################
 # Receive Signal
@@ -25,7 +33,12 @@ rx_bits = 12
 sdr = SoapySDR.Device() 
 SoapySDR.setLogLevel(SOAPY_SDR_TRACE)
 
-setting = sdr.writeSetting("counter", "true")
+setting = sdr.readSetting("iq_swap")
+print("read iq_swap", setting)
+
+sdr.writeSetting("counter", "true")
+setting = sdr.readSetting("counter")
+print("read counter", setting)
 
 sdr.setSampleRate(SOAPY_SDR_RX, rx_chan, fs)          # Set sample rate
 sdr.setBandwidth(SOAPY_SDR_RX, rx_chan, fs)          # Set sample rate
@@ -34,28 +47,48 @@ sdr.setFrequency(SOAPY_SDR_RX, rx_chan, freq)         # Tune the LO
 
 # Create data buffer and start streaming samples to it
 rx_stream = sdr.setupStream(SOAPY_SDR_RX, SOAPY_SDR_CS16, [rx_chan])  # Setup data stream
-sdr.activateStream(rx_stream)  # this turns the radio on
-rx_buff = np.empty(2 * N, np.int16)                 # Create memory buffer for data stream
 
-for i in range(2):
-    print("block", i)
+NUM_BUFF = 10
+
+rx_buff = np.empty([NUM_BUFF, (2 * N)], np.int16)                 # Create memory buffer for data stream
+
+sdr.activateStream(rx_stream)  # this turns the radio on
+for idx1 in range(NUM_BUFF):
+    print("read block", idx1)
+
     # Read the samples from the data buffer
-    sr = sdr.readStream(rx_stream, [rx_buff], N, timeoutUs=timeout_us)
+    sr = sdr.readStream(rx_stream, [rx_buff[idx1]], N, timeoutUs=timeout_us)
+
     rc = sr.ret # number of samples read or the error code
     assert rc == N, 'Error Reading Samples from Device (error code = %d)!' % rc
-    print(rx_buff)
 
-    expected = np.int16(rx_buff[0])
+sdr.deactivateStream(rx_stream)
+
+
+for i in range(NUM_BUFF):
+    print("analyze block", i)
+    expected = np.int16(rx_buff[i][0])
     #validate samples
-    for j in range(100):
-        if np.int16(rx_buff[j]) != expected:
-            print("bad value", j, "expected", expected, "value", rx_buff[j])
+    for j in range(((2 * N) - 1)):
+        this_value = np.int16(rx_buff[i][j])
+
+        if (this_value != expected):
+#            print(rx_buff[i])
+            print("bad value", j, "expected", expected, "value", this_value)
+
+            #error print the buffer around the error
             for k in range(-5, 5):
-                print(k, " ", rx_buff[j+k])
+                print((j + k), " ", rx_buff[i][j+k])
             break
-        expected = (expected + 1)
+
+        expected = (this_value + 1)
+        if expected == (max_data + 1):
+            expected = -(max_data+1)
+
+    if j >= ((2 * N - 1) - 1):
+        print(" success")
+
 
 # Stop streaming
-sdr.deactivateStream(rx_stream)
 sdr.closeStream(rx_stream)
 
