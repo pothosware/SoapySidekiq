@@ -22,9 +22,11 @@ rx_bits = 12
 ############################################################################################
 # Receive Signal
 ############################################################################################
+sdr = SoapySDR.Device() 
 SoapySDR.setLogLevel(SOAPY_SDR_TRACE)
 
-sdr = SoapySDR.Device() 
+setting = sdr.writeSetting("counter", "true")
+
 sdr.setSampleRate(SOAPY_SDR_RX, rx_chan, fs)          # Set sample rate
 sdr.setBandwidth(SOAPY_SDR_RX, rx_chan, fs)          # Set sample rate
 #sdr.setGainMode(SOAPY_SDR_RX, rx_chan, use_agc)       # Set the gain mode
@@ -41,12 +43,12 @@ for i in range(2):
     sr = sdr.readStream(rx_stream, [rx_buff], N, timeoutUs=timeout_us)
     rc = sr.ret # number of samples read or the error code
     assert rc == N, 'Error Reading Samples from Device (error code = %d)!' % rc
-#    print(rx_buff)
+    print(rx_buff)
 
     expected = np.int16(rx_buff[0])
     #validate samples
     for j in range(100):
-        if rx_buff[j] != expected:
+        if np.int16(rx_buff[j]) != expected:
             print("bad value", j, "expected", expected, "value", rx_buff[j])
             for k in range(-5, 5):
                 print(k, " ", rx_buff[j+k])

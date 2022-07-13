@@ -62,7 +62,6 @@ def handler(signum, frame):
     exit(1)
 
 def main(rx_chan, fs, bw, sfreq, stfreq, port, looptime):
-    SoapySDR.setLogLevel(SOAPY_SDR_DEBUG)
 
     # Figure out how many times to loop to get one sample across the frequency range
     diff = stfreq - sfreq
@@ -98,6 +97,7 @@ def main(rx_chan, fs, bw, sfreq, stfreq, port, looptime):
 #    args = dict(card = '1')
     args = dict(serial = '8N55')
     sdr = SoapySDR.Device(args)
+    SoapySDR.setLogLevel(SOAPY_SDR_ERROR)
 
     # Create data buffer and start streaming samples to it
     rx_buff = np.empty((loops,2 * N), np.int16)                 # Create memory buffer for data stream

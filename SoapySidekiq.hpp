@@ -174,6 +174,8 @@ class SoapySidekiq : public SoapySDR::Device {
 
   double getSampleRate(const int direction, const size_t channel) const;
 
+  SoapySDR::RangeList getSampleRateRange(const int direction, const size_t channel) const;
+
   std::vector<double> listSampleRates(const int direction, const size_t channel) const;
 
   void setBandwidth(const int direction, const size_t channel, const double bw);

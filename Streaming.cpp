@@ -65,13 +65,18 @@ void SoapySidekiq::rx_receive_operation(void) {
 
   SoapySDR_log(SOAPY_SDR_INFO, "Starting RX Sidekiq Thread");
 
-//  status = skiq_write_rx_data_src(card, rx_hdl, skiq_data_src_counter);
+  //status = skiq_write_rx_data_src(card, rx_hdl, skiq_data_src_counter);
+  
   /* set rx source as iq data */
-  status = skiq_write_iq_order_mode(card, skiq_iq_order_iq) ;
+  status = skiq_write_iq_order_mode(card, skiq_iq_order_qi) ;
   if (status != 0) {
     SoapySDR_logf(SOAPY_SDR_ERROR, "Failure: skiq_write_rx_data_src (card %d) status %d", card, status);
     throw std::runtime_error(" skiq_write_rx_data_src error");
   }
+
+  skiq_iq_order_t iq_order;
+  status = skiq_read_iq_order_mode(card, &iq_order) ;
+  SoapySDR_logf(SOAPY_SDR_DEBUG, "order mode %d", iq_order);
 
   /* set a modest rx timeout */
   status = skiq_set_rx_transfer_timeout(card, 100000) ;
@@ -120,8 +125,22 @@ void SoapySidekiq::rx_receive_operation(void) {
           // get overload out of metadata
           overload = tmp_p_rx_block->overload;
 
-          //copy the out of the rx_buffer and into the ring buffers
-          memcpy(p_rx_block[rxWriteIndex], tmp_p_rx_block, len);
+          int num_words_read = (len / 4) - SKIQ_RX_HEADER_SIZE_IN_WORDS ;
+
+          //copy the data out of the rx_buffer and into the ring buffers
+          memcpy(p_rx_block[rxWriteIndex], (void *)tmp_p_rx_block->data, 
+                  (num_words_read * sizeof(uint32_t)));
+
+#ifdef DEBUG
+          uint8_t * tmp_ptr = (uint8_t *)tmp_p_rx_block->data;
+
+          for (int i=0; i < 10; i++) {
+              SoapySDR_logf(SOAPY_SDR_DEBUG, "R 0x%02X, 0x%02X, 0x%02X, 0x%02X ", 
+                            *tmp_ptr++, *tmp_ptr++, *tmp_ptr++, *tmp_ptr++);
+          }  
+
+          printf(" done \n");
+#endif
 
           rxWriteIndex = (rxWriteIndex + 1) % DEFAULT_NUM_BUFFERS;
 
@@ -412,13 +431,15 @@ int SoapySidekiq::readStream(SoapySDR::Stream *stream,
 
     // copy in the amount of data we have in the ring block
     memcpy(buff_ptr, ringbuffer_ptr, bytes_left_in_block); 
+ 
 
 #ifdef debug
     int16_t *temp_ptr = (int16_t *)buff_ptr;
     for (int i=0; i < 10; i++) {
-        SoapySDR_logf(SOAPY_SDR_DEBUG, "%d, ", *temp_ptr);
+        SoapySDR_logf(SOAPY_SDR_DEBUG, "A 0x%04X, ", *temp_ptr);
         temp_ptr++;
     }
+    printf("done \n");
 #endif
 
     buff_ptr = buff_ptr + bytes_left_in_block;
@@ -460,11 +481,12 @@ int SoapySidekiq::readStream(SoapySDR::Stream *stream,
     memcpy(buff_ptr, ringbuffer_ptr, numElemsLeft_in_bytes); 
     
 #ifdef debug
-    int16_t *temp_ptr = (int16_t *)ringbuffer_ptr;
+    int16_t *temp_ptr = (int16_t *)buff_ptr;
     for (int i=0; i < 10; i++) {
-        SoapySDR_logf(SOAPY_SDR_DEBUG, "%d, ", *temp_ptr);
+        SoapySDR_logf(SOAPY_SDR_DEBUG, "B 0x%04X, ", *temp_ptr);
         temp_ptr++;
     }
+    printf("done \n");
 #endif
     // keep this around for the next call  
     p_rx_block_index += numElemsLeft_in_bytes ;

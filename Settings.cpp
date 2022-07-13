@@ -8,6 +8,7 @@ bool SoapySidekiq::rx_running;
 SoapySidekiq::SoapySidekiq(const SoapySDR::Kwargs &args) {
   int status = 0;
 
+  SoapySDR::setLogLevel(SOAPY_SDR_DEBUG);
   //  rx defaults
   rx_sample_rate = 2048000;
   rx_bandwidth = 2048000;
@@ -66,10 +67,12 @@ SoapySidekiq::~SoapySidekiq(void) {
  ******************************************************************/
 
 std::string SoapySidekiq::getDriverKey(void) const {
+  SoapySDR_logf(SOAPY_SDR_TRACE, "getDriverKey");
   return "Sidekiq";
 }
 
 std::string SoapySidekiq::getHardwareKey(void) const {
+  SoapySDR_logf(SOAPY_SDR_TRACE, "getHardwareKey");
   return "Sidekiq";
 }
 
@@ -77,6 +80,7 @@ SoapySDR::Kwargs SoapySidekiq::getHardwareInfo(void) const {
   //  key/value pairs for any useful information
   //  this also gets printed in --probe
   SoapySDR::Kwargs args;
+  SoapySDR_logf(SOAPY_SDR_TRACE, "getHardwareInfo");
 
   args["origin"] = "https://github.com/pothosware/SoapySidekiq";
   args["card"] = std::to_string(card);
@@ -98,8 +102,8 @@ size_t SoapySidekiq::getNumChannels(const int dir) const {
 
 std::vector<std::string> SoapySidekiq::listAntennas(const int direction, const size_t channel) const {
   std::vector<std::string> antennas;
-  antennas.push_back("RX");
-  antennas.push_back("TX");
+  antennas.push_back("");
+//  antennas.push_back("TX");
   return antennas;
 }
 
@@ -121,6 +125,7 @@ bool SoapySidekiq::hasDCOffsetMode(const int direction, const size_t channel) co
 
 void SoapySidekiq::setDCOffsetMode(const int direction, const size_t channel, const bool automatic) {
   int status = 0;
+  SoapySDR_logf(SOAPY_SDR_TRACE, "setDCOffsetMode");
 
   if (direction == SOAPY_SDR_RX) {
     status = skiq_write_rx_dc_offset_corr(card, rx_hdl, automatic);
@@ -342,6 +347,7 @@ SoapySDR::RangeList SoapySidekiq::getFrequencyRange(const int direction,
 SoapySDR::ArgInfoList SoapySidekiq::getFrequencyArgsInfo(const int direction, const size_t channel) const {
   SoapySDR::ArgInfoList freqArgs;
 
+
   // TODO: frequency arguments
 
   return freqArgs;
@@ -430,6 +436,26 @@ std::vector<double> SoapySidekiq::listSampleRates(const int direction, const siz
   return results;
 }
 
+SoapySDR::RangeList SoapySidekiq::getSampleRateRange(const int direction, const size_t channel) const
+{
+  int status = 0;
+  uint32_t min_sample_rate;
+  uint32_t max_sample_rate;
+
+    SoapySDR::RangeList ranges;
+    status = skiq_read_min_sample_rate(card, &min_sample_rate);
+    if (status != 0) {
+      SoapySDR_logf(SOAPY_SDR_ERROR, "Failure: skiq_read_min_sample_rate (card %d), status %d", card, status);
+    }
+    status = skiq_read_max_sample_rate(card, &max_sample_rate) ;
+    if (status != 0) {
+      SoapySDR_logf(SOAPY_SDR_ERROR, "Failure: skiq_read_min_sample_rate (card %d), status %d", card, status);
+    }
+    ranges.push_back(SoapySDR::Range(min_sample_rate, max_sample_rate));
+
+    return ranges;
+}
+
 void SoapySidekiq::setBandwidth(const int direction, const size_t channel, const double bw) {
   int status = 0;
 
@@ -497,28 +523,72 @@ std::vector<double> SoapySidekiq::listBandwidths(const int direction, const size
 
 SoapySDR::ArgInfoList SoapySidekiq::getSettingInfo(void) const {
   SoapySDR::ArgInfoList setArgs;
+  SoapySDR_logf(SOAPY_SDR_TRACE, "getSettingInfo");
 
-  SoapySDR::ArgInfo iqSwapArg;
+  SoapySDR::ArgInfo settingArg;
 
-  iqSwapArg.key = "iq_swap";
-  iqSwapArg.value = "false";
-  iqSwapArg.name = "I/Q Swap";
-  iqSwapArg.description = "I/Q Swap Mode";
-  iqSwapArg.type = SoapySDR::ArgInfo::BOOL;
+  settingArg.key = "iq_swap";
+  settingArg.value = "false";
+  settingArg.name = "I/Q Swap";
+  settingArg.description = "I/Q Swap Mode";
+  settingArg.type = SoapySDR::ArgInfo::BOOL;
+  setArgs.push_back(settingArg);
 
-  setArgs.push_back(iqSwapArg);
-
+  settingArg.key = "counter";
+  settingArg.value = "false";
+  settingArg.name = "counter";
+  settingArg.description = "RF counter mode";
+  settingArg.type = SoapySDR::ArgInfo::BOOL;
+  setArgs.push_back(settingArg);
   return setArgs;
 }
 
 void SoapySidekiq::writeSetting(const std::string &key, const std::string &value) {
+  int status = 0;
+
+  SoapySDR_logf(SOAPY_SDR_TRACE, "writeSetting");
   if (key == "iq_swap") {
     iq_swap = ((value == "true") ? true : false);
     SoapySDR_logf(SOAPY_SDR_DEBUG, "I/Q swap: %s", iq_swap ? "true" : "false");
+  
   }
+  else if (key == "counter")
+  {
+    if (value == "true")
+    {
+      status = skiq_write_rx_data_src(card, rx_hdl, skiq_data_src_counter);
+      if (status != 0)
+      {
+        SoapySDR_logf(SOAPY_SDR_ERROR, "Failure in writing data src to counter status is %d", status);
+      }
+      else
+      {
+        SoapySDR_log(SOAPY_SDR_DEBUG, "Set rx src to counter mode ");
+      }
+    }
+    else
+    {
+      status = skiq_write_rx_data_src(card, rx_hdl, skiq_data_src_iq);
+      if (status != 0)
+      {
+        SoapySDR_logf(SOAPY_SDR_ERROR, "Failure in writing data src to iq status is %d", status);
+      }
+      else
+      {
+        SoapySDR_log(SOAPY_SDR_DEBUG, "Set rx src to normal mode ");
+      }
+    }
+  }
+  else
+  {
+    SoapySDR_logf(SOAPY_SDR_ERROR, "Invalid key %s ", key.c_str());
+  }
+
+        
 }
 
 std::string SoapySidekiq::readSetting(const std::string &key) const {
+  SoapySDR_logf(SOAPY_SDR_TRACE, "readSetting");
   if (key == "iq_swap") {
     return iq_swap ? "true" : "false";
   }
