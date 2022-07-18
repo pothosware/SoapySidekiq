@@ -13,6 +13,10 @@ import argparse
 import SoapySDR
 from SoapySDR import *
 
+#N = 8188
+N = 8192
+#N = (8188 * 4) + 32
+
 
 def make_tone(n, fcen, fs, phi=0.285):
     """
@@ -21,7 +25,7 @@ def make_tone(n, fcen, fs, phi=0.285):
     discontinuity.
     """
     period = fs / fcen
-    assert n % period == 0, 'Total samples not integer number of periods'
+    #assert n % period == 0, 'Total samples not integer number of periods'
     a = 2**12
     # Make Complex Valued Tone Signal
     wt = np.array(2 * np.pi * fcen * np.arange(n) / fs)
@@ -37,9 +41,14 @@ def transmit_tone(freq=1e7, chan=0, fs=31.25, attenuation=20, buff_len=16384):
     """ Transmit a tone out of the Sidekiq """
 
     sdr = SoapySDR.Device()  
+    SoapySDR.setLogLevel(SOAPY_SDR_TRACE)
+#    SoapySDR.setLogLevel(SOAPY_SDR_ERROR)
+
     tx_stream = sdr.setupStream(SOAPY_SDR_TX, SOAPY_SDR_CS16, [chan])
     sdr.activateStream(tx_stream)  # this turns the radio on
-    buff_len=(sdr.getStreamMTU(tx_stream)*4)
+    ##buff_len=(sdr.getStreamMTU(tx_stream)*4)
+
+    buff_len = N
     print("buff_len", buff_len)
 
     # Generate tone buffer that can be repeated without phase discontunity
@@ -57,14 +66,22 @@ def transmit_tone(freq=1e7, chan=0, fs=31.25, attenuation=20, buff_len=16384):
     time_last_print = time.time()
     total_samps = 0
 
-
+    ctr = 0
     # Transmit
-    print('Now Transmitting a tone at ', (fs/4000000), "MHz")
+    print('Now Transmitting a tone at ', (fs/4000000), "MHz above LO frequency")
     while True:
         try:
+            if ctr % 2 == 0:
+                buff_len -= 1
+            else:
+                buff_len += 1
+
             rc = sdr.writeStream(tx_stream, [tx_buff], buff_len)
             if rc.ret != buff_len:
                 print('TX Error {}: {}'.format(rc.ret, errToStr(rc.ret)))
+            if ctr == 2:
+                exit(1)
+            ctr += 1
         except KeyboardInterrupt:
             break
         total_samps += buff_len
@@ -100,6 +117,5 @@ def parse_command_line_arguments():
 
 
 if __name__ == '__main__':
-    SoapySDR.setLogLevel(SOAPY_SDR_DEBUG)
     pars = parse_command_line_arguments()
     transmit_tone(pars.freq, pars.chan, pars.fs, pars.attenuation, pars.buff_len)

@@ -5,6 +5,7 @@
 #include <cstring>  // memcpy
 #include <sidekiq_types.h>
 #include <unistd.h>
+#include <iostream>
 
 std::vector<std::string> SoapySidekiq::getStreamFormats(const int direction, const size_t channel) const {
   SoapySDR_logf(SOAPY_SDR_TRACE, "getStreamFormats");
@@ -210,14 +211,17 @@ SoapySDR::Stream *SoapySidekiq::setupStream(const int direction,
   rxReadIndex = 0;
 
   rx_block_size_in_words = rx_block_size_in_bytes / 4;
-  //  check the format
+
+  //  check the format only support CS16 for now
   if (format == "CS16") {
     useShort = true; 
     SoapySDR_log(SOAPY_SDR_INFO, "Using format CS16\n");
 
+/*
   } else if (format == "CF32") {
     useShort = false;
     SoapySDR_log(SOAPY_SDR_INFO, "Using format CF32\n");
+    */
   } else {
     throw std::runtime_error(
         "setupStream invalid format '" + format
@@ -232,11 +236,9 @@ SoapySDR::Stream *SoapySidekiq::setupStream(const int direction,
       throw std::runtime_error("setupStream invalid channel selection");
     }
 
-    //  check the format
+    //  check the format only support CS16 for now
     if (format == "CS16") {
       SoapySDR_log(SOAPY_SDR_INFO, "Using format CS16\n"); 
-    } else if (format == "CF32") {
-      SoapySDR_log(SOAPY_SDR_INFO, "Using format CF32\n");
     } else {
       throw std::runtime_error(
           "setupStream invalid format '" + format
@@ -309,6 +311,7 @@ int SoapySidekiq::activateStream(SoapySDR::Stream *stream,
 
   } else if (stream == TX_STREAM) {
     SoapySDR_logf(SOAPY_SDR_DEBUG, "Start TX");
+    p_tx_block_index = 0;
     tx_underruns = 0;
 
     //  tx block size
@@ -423,7 +426,7 @@ int SoapySidekiq::readStream(SoapySDR::Stream *stream,
   // determine if we have more words in the ring buffer block than we need (or equal) 
   while (numElemsLeft >= words_left_in_block) 
   {
-#define debug
+//#define debug
 #ifdef debug
     SoapySDR_logf(SOAPY_SDR_DEBUG, "1 p_rx_block_index %d, numElemsLeft %d, words_left_in_block %d", 
                                     p_rx_block_index, numElemsLeft, words_left_in_block);
@@ -599,49 +602,82 @@ int SoapySidekiq::writeStream(SoapySDR::Stream *stream,
                               const long long timeNs,
                               const long timeoutUs) {
 
-  /* TODO: This assumes that the numElems can be placed evenly into a transmit buffer
-   * Make sure!
-   * 
-   */
   int status = 0;
+  uint32_t errors=0;
 
   SoapySDR_logf(SOAPY_SDR_TRACE, "writeStream");
   if (stream != TX_STREAM) {
     return SOAPY_SDR_NOT_SUPPORTED;
   }
 
-  if (numElems % DEFAULT_TX_BUFFER_LENGTH != 0)
+
+
+  // Pointer to the location in the input buffer to transmit from
+  char *inbuff_ptr = (char *)(buffs[0]) ;
+
+#ifdef debug2
+  int16_t *tmp_ptr = (int16_t *)inbuff_ptr;
+
+  uint32_t tmp_ctr=0; 
+ 
+  for (int i = 0; i < 5; i++)
   {
-      SoapySDR_logf(SOAPY_SDR_ERROR, "Failure: buffer length is %d, it must be a multiple of %d", 
-              numElems, DEFAULT_TX_BUFFER_LENGTH);
-      exit(1);
+      printf(" 0x%04X 0x%04X ", (uint16_t)tmp_ptr[tmp_ctr], (uint16_t)tmp_ptr[tmp_ctr + 1]);
+      tmp_ctr += 2;
+      fflush(stdout);
   }
-     
+  printf("\n");
+#endif
 
-  const uint32_t block_size_in_words = DEFAULT_TX_BUFFER_LENGTH;
+  // Pointer to the location in the output buffer to copy to.
+  char *outbuff_ptr = (char *)p_tx_block[currTXBuffIndex]->data + p_tx_block_index; 
 
+  // How many bytes are left in the block we are working on.
+  uint32_t block_bytes_left = (DEFAULT_TX_BUFFER_LENGTH * 4) - p_tx_block_index;
 
-  size_t data_bytes = numElems * 2 * sizeof(int16_t);
-  uint32_t num_blocks = (data_bytes / (block_size_in_words * 4));
-  if ((data_bytes % (block_size_in_words * 4)) != 0) {
-    num_blocks++;
-  } 
+  // total number of bytes that need to be transmitted in this call
+  uint32_t data_bytes = numElems * 4;
 
-  uint32_t i;
-  uint32_t errors=0;
-  char     *data_ptr;
+  /* loop until the number of elements to send is less than the size left in the block */
+  while (data_bytes >= block_bytes_left)
+  {
+#ifdef debug
+    SoapySDR_logf(SOAPY_SDR_DEBUG, "1 numElems %u, data_bytes %d, block_bytes_left %d, p_tx_block_index %u\n", 
+                   numElems, data_bytes, block_bytes_left, p_tx_block_index);
+    SoapySDR_logf(SOAPY_SDR_DEBUG, "inbuff_ptr %p, outbuff_ptr %p\n", inbuff_ptr, outbuff_ptr);
+#endif
 
-  for (i = 0; i < num_blocks; i++) {
-    data_ptr = (char *)(buffs[0]) + (i * block_size_in_words * 4);
-
-    memcpy(p_tx_block[currTXBuffIndex]->data, data_ptr, (block_size_in_words * 4));
+    memcpy(outbuff_ptr, inbuff_ptr, block_bytes_left);
 
     status = skiq_transmit(card, tx_hdl, p_tx_block[currTXBuffIndex], NULL);
-    if (status != 0) {
+    if (status != 0) 
+    {
       SoapySDR_logf(SOAPY_SDR_ERROR, "Failure: skiq_transmit (card %d) status %d", card, status);
     }
+
+    inbuff_ptr += block_bytes_left;
+    data_bytes -= block_bytes_left;
+    block_bytes_left = DEFAULT_TX_BUFFER_LENGTH * 4;
+
+    p_tx_block_index = 0;
     currTXBuffIndex = (currTXBuffIndex + 1) % DEFAULT_NUM_BUFFERS;
+    outbuff_ptr = (char *)p_tx_block[currTXBuffIndex]->data ;
   }
+
+  // This means that the number of bytes left to send is smaller than what is left in the block
+  // So just copy the data into the block and be done.  The rest will be sent on the next call
+  if (data_bytes < block_bytes_left && data_bytes != 0)
+  {
+#ifdef debug
+    SoapySDR_logf(SOAPY_SDR_DEBUG, "2 data_bytes %d, block_bytes_left %d, p_tx_block_index %u\n", 
+                   data_bytes, block_bytes_left, p_tx_block_index);
+    SoapySDR_logf(SOAPY_SDR_DEBUG, "inbuff_ptr %p, outbuff_ptr %p\n", inbuff_ptr, outbuff_ptr);
+#endif
+
+    memcpy(outbuff_ptr, inbuff_ptr, block_bytes_left);
+    p_tx_block_index += data_bytes;
+  }
+
 
   /* This call will return a cumulative number of underruns since start streaming */
   status = skiq_read_tx_num_underruns(card, tx_hdl, &errors);
@@ -649,8 +685,8 @@ int SoapySidekiq::writeStream(SoapySDR::Stream *stream,
       SoapySDR_logf(SOAPY_SDR_ERROR, "Failure: skiq_read_tx_num_underruns (card %d) status %d", card, status);
     }
 
-  if (errors >= tx_underruns + 1000){
-      printf("underruns %d\n", errors);
+  if (errors >= tx_underruns + 500){
+      printf("cumulative underruns %d\n", errors);
       tx_underruns = errors;
   }
 

@@ -19,6 +19,7 @@
 #define DEFAULT_NUM_BUFFERS       (30)
 #define DEFAULT_ELEMS_PER_SAMPLE  (2)
 #define DEFAULT_TX_BUFFER_LENGTH  (8188)
+//#define DEFAULT_TX_BUFFER_LENGTH  (2044)
 #define DEFAULT_SLEEP_US          (100)
 #define SLEEP_1SEC                (1 * 1000000)
 
@@ -252,6 +253,7 @@ class SoapySidekiq : public SoapySDR::Device {
   // TX buffer
   skiq_tx_block_t *p_tx_block[DEFAULT_NUM_BUFFERS];
   uint32_t currTXBuffIndex;
+  uint32_t p_tx_block_index;
 
  public:
   //  receive thread
