@@ -8,7 +8,6 @@ bool SoapySidekiq::rx_running;
 SoapySidekiq::SoapySidekiq(const SoapySDR::Kwargs &args) {
   int status = 0;
 
-  SoapySDR::setLogLevel(SOAPY_SDR_DEBUG);
   //  rx defaults
   rx_sample_rate = 2048000;
   rx_bandwidth = 2048000;
@@ -19,7 +18,10 @@ SoapySidekiq::SoapySidekiq(const SoapySDR::Kwargs &args) {
   tx_bandwidth = 2048000;
   tx_center_frequency = 100000000;
 
+  useShort = true;
   iq_swap = false;
+  counter = false;
+  debug_ctr = 0;
 
   //  this may change later according to format
   rx_running = false;
@@ -197,13 +199,24 @@ bool SoapySidekiq::getGainMode(const int direction, const size_t channel) const 
 void SoapySidekiq::setGain(const int direction, const size_t channel, const double value) {
     int status;
 
-  if (direction == SOAPY_SDR_RX) {
-    uint16_t gain = (uint16_t)(abs(value)); 
-    status = skiq_write_rx_gain(card, rx_hdl, gain) ; 
-    if (status != 0) {
-      SoapySDR_logf(SOAPY_SDR_ERROR, "Failure: skiq_write_rx_gain (card %d, value %d) status %d", card, gain, status);
+  if (direction == SOAPY_SDR_RX) 
+  {
+    /* if gain mode is automatic, we should leave */ 
+    if (!getGainMode(direction, channel))
+    {
+      uint16_t gain = (uint16_t)(abs(value)); 
+      status = skiq_write_rx_gain(card, rx_hdl, gain) ; 
+      if (status != 0) 
+      {
+        SoapySDR_logf(SOAPY_SDR_ERROR, "Failure: skiq_write_rx_gain (card %d, value %d) status %d", card, gain, status);
+      }
+      SoapySDR_logf(SOAPY_SDR_DEBUG, "Setting rx gain: %d", gain);
     }
-    SoapySDR_logf(SOAPY_SDR_DEBUG, "Setting rx gain: %d", gain);
+    else
+    {
+        SoapySDR_log(SOAPY_SDR_WARNING, "Attempt to set gain even though it"
+                                        " was already set to automatic gain mode");
+    }
   }
 
   /* For TX gain is attenuation, someone may send that gain as negative or positive 
@@ -233,20 +246,26 @@ double SoapySidekiq::getGain(const int direction, const size_t channel) const {
   return SoapySDR::Device::getGain(direction, channel);
 }
 
-SoapySDR::Range SoapySidekiq::getGainRange(const int direction, const size_t channel, const std::string &name) const {
+SoapySDR::Range SoapySidekiq::getGainRange(const int direction, const size_t channel) const {
     int status = 0;
 
-    if (direction == SOAPY_SDR_RX) {
-    uint8_t gain_index_min;
-    uint8_t gain_index_max;
-    status = skiq_read_rx_gain_index_range(card, rx_hdl, &gain_index_min, &gain_index_max);
-    if (status != 0) {
-      SoapySDR_logf(SOAPY_SDR_ERROR, "Failure: skiq_read_rx_gain_index_range (card %d), status %d", card);
-    }
-    return SoapySDR::Range(gain_index_max, gain_index_max);
+    SoapySDR_log(SOAPY_SDR_TRACE, "getGainRange");
+
+    if (direction == SOAPY_SDR_RX) 
+    {
+      uint8_t gain_index_min;
+      uint8_t gain_index_max;
+
+      status = skiq_read_rx_gain_index_range(card, rx_hdl, &gain_index_min, &gain_index_max);
+      if (status != 0) {
+        SoapySDR_logf(SOAPY_SDR_ERROR, "Failure: skiq_read_rx_gain_index_range (card %d), status %d", card);
+        return SoapySDR::Device::getGainRange(direction, channel);
+      }
+
+      return SoapySDR::Range(gain_index_min, gain_index_max);
   }
 
-  return SoapySDR::Device::getGainRange(direction, channel, name);
+  return SoapySDR::Device::getGainRange(direction, channel);
 }
 
 /*******************************************************************
@@ -540,6 +559,13 @@ SoapySDR::ArgInfoList SoapySidekiq::getSettingInfo(void) const {
   settingArg.description = "RF counter mode";
   settingArg.type = SoapySDR::ArgInfo::BOOL;
   setArgs.push_back(settingArg);
+
+  settingArg.key = "log";
+  settingArg.value = "false";
+  settingArg.name = "log";
+  settingArg.description = "Set the Log Level";
+  settingArg.type = SoapySDR::ArgInfo::BOOL;
+  setArgs.push_back(settingArg);
   return setArgs;
 }
 
@@ -564,9 +590,10 @@ void SoapySidekiq::writeSetting(const std::string &key, const std::string &value
       else
       {
         SoapySDR_log(SOAPY_SDR_DEBUG, "Set rx src to counter mode ");
+        counter = true;
       }
     }
-    else
+    else 
     {
       status = skiq_write_rx_data_src(card, rx_hdl, skiq_data_src_iq);
       if (status != 0)
@@ -576,8 +603,24 @@ void SoapySidekiq::writeSetting(const std::string &key, const std::string &value
       else
       {
         SoapySDR_log(SOAPY_SDR_DEBUG, "Set rx src to normal mode ");
+        counter = false;
       }
     }
+  }
+  else if ( key == "log" )
+  {
+      if (value == "trace")
+      {
+        SoapySDR::setLogLevel(SOAPY_SDR_TRACE);
+        SoapySDR_log(SOAPY_SDR_DEBUG, "Set Log Level to TRACE");
+      } else if (value == "debug")
+      {
+        SoapySDR::setLogLevel(SOAPY_SDR_DEBUG);
+        SoapySDR_log(SOAPY_SDR_DEBUG, "Set Log Level to DEBUG");
+      } else
+      {
+        SoapySDR_logf(SOAPY_SDR_ERROR, "Invalid log level received %s", value.c_str());
+      }
   }
   else
   {
@@ -592,7 +635,13 @@ std::string SoapySidekiq::readSetting(const std::string &key) const {
   if (key == "iq_swap") {
     return iq_swap ? "true" : "false";
   }
-
-  SoapySDR_logf(SOAPY_SDR_WARNING, "Unknown setting '%s'", key.c_str());
+  else if (key == "counter")
+  {
+      return counter ? "true" : "false";
+  }
+  else
+  {
+    SoapySDR_logf(SOAPY_SDR_WARNING, "Unknown setting '%s'", key.c_str());
+  }
   return "";
 }

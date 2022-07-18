@@ -146,7 +146,7 @@ class SoapySidekiq : public SoapySDR::Device {
 
   double getGain(const int direction, const size_t channel) const;
 
-  SoapySDR::Range getGainRange(const int direction, const size_t channel, const std::string &name) const;
+  SoapySDR::Range getGainRange(const int direction, const size_t channel) const;
 
   /*******************************************************************
    * Frequency API
@@ -214,12 +214,16 @@ class SoapySidekiq : public SoapySDR::Device {
   SoapySDR::Stream* const TX_STREAM = (SoapySDR::Stream*) 0x1;
   SoapySDR::Stream* const RX_STREAM = (SoapySDR::Stream*) 0x2;
 
+
   //  sidekiq card
   uint8_t card;
 
   //  sidekiq hdl
   skiq_rx_hdl_t rx_hdl;
   skiq_tx_hdl_t tx_hdl;
+
+  bool useShort; 
+  uint32_t debug_ctr;
 
   //  rx
   uint64_t rx_center_frequency;
@@ -236,6 +240,8 @@ class SoapySidekiq : public SoapySDR::Device {
 
   //  setting
   bool iq_swap;
+  bool counter;
+  bool log;
 
   // RX buffer
   skiq_rx_block_t *p_rx_block[DEFAULT_NUM_BUFFERS];

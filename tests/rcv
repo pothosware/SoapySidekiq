@@ -21,10 +21,10 @@ rx_bits = 12
 ############################################################################################
 # Receive Signal
 ############################################################################################
-SoapySDR.setLogLevel(SOAPY_SDR_DEBUG)
 
 #if no args, then the code will find the first device available
 sdr = SoapySDR.Device() 
+SoapySDR.setLogLevel(SOAPY_SDR_TRACE)
 
 #if you want to find a card by card number then
 """
@@ -47,9 +47,11 @@ sdr.setFrequency(SOAPY_SDR_RX, rx_chan, freq)         # Tune the LO
 
 # Create data buffer and start streaming samples to it
 rx_stream = sdr.setupStream(SOAPY_SDR_RX, SOAPY_SDR_CS16, [rx_chan])  # Setup data stream
+#rx_stream = sdr.setupStream(SOAPY_SDR_RX, SOAPY_SDR_CF32, [rx_chan])  # Setup data stream
 sdr.activateStream(rx_stream)  # this turns the radio on
 
 rx_buff = np.empty(2 * N, np.int16)                 # Create memory buffer for data stream
+#rx_buff = np.empty(2 * N, float)                 # Create memory buffer for data stream
 # Read the samples from the data buffer
 sr = sdr.readStream(rx_stream, [rx_buff], N, timeoutUs=timeout_us)
 rc = sr.ret # number of samples read or the error code

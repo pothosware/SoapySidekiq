@@ -1,0 +1,112 @@
+#!/bin/python3
+
+import sys
+import time
+import numpy as np
+from matplotlib import pyplot as plt
+import SoapySDR
+print(SoapySDR, __file__)
+from SoapySDR import *
+
+np.set_printoptions(threshold=sys.maxsize)
+
+############################################################################################
+# Settings
+############################################################################################
+# Data transfer settings
+NUM_BUFF = 1
+rx_chan = 0             # RX1 = 0, RX2 = 1
+#N = 16384               # Number of complex samples per transfer
+N = 1018 + 4
+#N = (1018 * 4) + 100
+#N = 32
+fs = 1e6            # Radio sample Rate
+freq = 100e6            # LO tuning frequency in Hz
+use_agc = False          # Use or don't use the AGC
+timeout_us = int(10e6)
+rx_resolution = 12
+max_data = (1 << (rx_resolution -1))-1
+print(max_data)
+SCALE = max_data + 1
+
+newfile = open("psamples.float", "wb")
+
+
+############################################################################################
+# Receive Signal
+############################################################################################
+sdr = SoapySDR.Device() 
+SoapySDR.setLogLevel(SOAPY_SDR_DEBUG)
+
+sdr.setSampleRate(SOAPY_SDR_RX, rx_chan, fs)          # Set sample rate
+sdr.setBandwidth(SOAPY_SDR_RX, rx_chan, fs)          # Set sample rate
+sdr.setGainMode(SOAPY_SDR_RX, rx_chan, use_agc)       # Set the gain mode
+sdr.setFrequency(SOAPY_SDR_RX, rx_chan, freq)         # Tune the LO
+
+# Create data buffer and start streaming samples to it
+rx_stream = sdr.setupStream(SOAPY_SDR_RX, SOAPY_SDR_CF32, [rx_chan])  # Setup data stream
+
+# create a re-usable buffer for receiving samples
+nb = sdr.getStreamMTU(rx_stream)
+print("Stream MTU set to %d",  nb)
+buff = np.zeros(N, dtype=np.csingle)
+print("addr ", hex(id(buff)))
+print("size", buff.size)
+print("len", len(buff))
+
+intbuff = np.zeros(N*2, dtype=np.int16)
+real = np.zeros(N, dtype=np.int16)
+imag = np.zeros(N, dtype=np.int16)
+
+sdr.activateStream(rx_stream)  # this turns the radio on
+
+ctr = 0
+#while True and ctr < 10000:
+for i in range(1):
+    buff = np.zeros(N, dtype=np.csingle)
+    buff[N-1] = .1234
+    sr = sdr.readStream(rx_stream, [buff], N)
+
+    print(buff)
+    print("addr ", hex(id(buff[N-1])))
+
+    """
+    if (ctr % 100) == 0:
+        print(" ", ctr, " ", end='')
+        sys.stdout.flush()
+
+    ctr = ctr + 1
+    real = buff.real * SCALE
+    imag = buff.imag * SCALE
+
+    intbuff[0::2] = real
+    intbuff[1::2] = imag
+    print(intbuff)
+
+    barray = bytes(intbuff)
+    newfile.write(barray)
+
+    nonzero = False
+    #validate samples
+    for j in range(10):
+        this_value = intbuff[j]
+        b_value = np.int16(barray[j*2]) 
+
+        if (this_value != b_value):
+            print("not same", j, this_value, b_value)
+            print(intbuff)
+            exit(1)
+
+        if (this_value != 0):
+            nonzero = True
+
+    if nonzero == False:
+        print(" Bad packet", ctr)
+        print(intbuff)
+        exit(1)
+
+    """
+
+sdr.deactivateStream(rx_stream)
+sdr.closeStream(rx_stream)
+newfile.close()

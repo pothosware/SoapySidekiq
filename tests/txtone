@@ -33,8 +33,8 @@ def make_tone(n, fcen, fs, phi=0.285):
     return sig_int16
 
 
-def transmit_tone(freq, chan=0, fs=31.25, attenuation=20, buff_len=16384):
-    """ Transmit a tone out of the AIR-T """
+def transmit_tone(freq=1e7, chan=0, fs=31.25, attenuation=20, buff_len=16384):
+    """ Transmit a tone out of the Sidekiq """
 
     sdr = SoapySDR.Device()  
     tx_stream = sdr.setupStream(SOAPY_SDR_TX, SOAPY_SDR_CS16, [chan])
@@ -59,7 +59,7 @@ def transmit_tone(freq, chan=0, fs=31.25, attenuation=20, buff_len=16384):
 
 
     # Transmit
-    print('Now Transmitting')
+    print('Now Transmitting a tone at ', (fs/4000000), "MHz")
     while True:
         try:
             rc = sdr.writeStream(tx_stream, [tx_buff], buff_len)
@@ -70,7 +70,7 @@ def transmit_tone(freq, chan=0, fs=31.25, attenuation=20, buff_len=16384):
         total_samps += buff_len
         if time.time() > time_last_print + 5.0:
             rate = total_samps / (time.time() - time_last_print) / 1e6
-            print("rate: %f Msps" % rate)
+            print("measured sample rate: %f Msps" % rate)
             total_samps = 0
             time_last_print = time.time()
 
@@ -87,11 +87,11 @@ def parse_command_line_arguments():
     parser = argparse.ArgumentParser(description='Transmit a tone on the AIR-T',
                                      formatter_class=help_formatter)
     parser.add_argument('-f', type=float, required=False, dest='freq',
-                        default=100e6, help='Lo Frequency')
+                        default=1000e6, help='Lo Frequency')
     parser.add_argument('-c', type=int, required=False, dest='chan',
                         default=0, help='TX Channel Number [0 or 1]')
     parser.add_argument('-s', type=float, required=False, dest='fs',
-                        default=10e6, help='TX Sample Rate')
+                        default=40e6, help='TX Sample Rate')
     parser.add_argument('-a', type=float, required=False, dest='attenuation',
                         default=0, help='TX attenuation')
     parser.add_argument('-n', type=int, required=False, dest='buff_len',
