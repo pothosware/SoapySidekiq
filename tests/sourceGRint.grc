@@ -61,12 +61,12 @@ blocks:
   id: variable
   parameters:
     comment: ''
-    value: '1000000'
+    value: '6000000'
   states:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [184, 12]
+    coordinate: [176, 12.0]
     rotation: 0
     state: enabled
 - name: blocks_conjugate_cc_0
@@ -81,7 +81,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [720, 296.0]
+    coordinate: [944, 280.0]
     rotation: 0
     state: true
 - name: blocks_file_sink_0
@@ -205,7 +205,7 @@ blocks:
   id: soapy_custom_source
   parameters:
     affinity: ''
-    agc0: 'True'
+    agc0: 'False'
     agc1: 'False'
     alias: ''
     antenna0: ''
@@ -219,7 +219,7 @@ blocks:
     dc_offset1: '0'
     dc_removal0: 'True'
     dc_removal1: 'True'
-    dev_args: '"log=debug"'
+    dev_args: '"card = 0, log=trace"'
     driver: sidekiq
     freq_correction0: '0'
     freq_correction1: '0'

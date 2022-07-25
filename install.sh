@@ -40,7 +40,6 @@ cd ../../
 echo "cloning SoapySidekiq"
 git clone https://github.com/epiqsolutions/SoapySidekiq.git
 cd SoapySidekiq
-git checkout change_rx_tx
 mkdir build
 cd build
 echo "Making SoapySidekiq"

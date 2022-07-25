@@ -388,7 +388,6 @@ int SoapySidekiq::readStream(SoapySDR::Stream *stream,
                              long long &timeNs,
                              const long timeoutUs) {
   long waitTime = timeoutUs;
-  SoapySDR_logf(SOAPY_SDR_TRACE, "readStream");
 
   if (stream != RX_STREAM) {
     return SOAPY_SDR_NOT_SUPPORTED;
