@@ -51,7 +51,7 @@ def transmit_tone(freq=1e7, chan=0, fs=31.25, attenuation=20, buff_len=16384):
     buff_len = N
     print("buff_len", buff_len)
 
-    # Generate tone buffer that can be repeated without phase discontunity
+    # Generate tone buffer that can be repeated without phase discontinuity
     bb_freq = fs / 4  # baseband frequency of tone
     tx_buff = make_tone(buff_len, bb_freq, fs)
     lo_freq = freq   # Calc LO freq to put tone at tone_rf
@@ -71,17 +71,9 @@ def transmit_tone(freq=1e7, chan=0, fs=31.25, attenuation=20, buff_len=16384):
     print('Now Transmitting a tone at ', (fs/4000000), "MHz above LO frequency")
     while True:
         try:
-            if ctr % 2 == 0:
-                buff_len -= 1
-            else:
-                buff_len += 1
-
             rc = sdr.writeStream(tx_stream, [tx_buff], buff_len)
             if rc.ret != buff_len:
                 print('TX Error {}: {}'.format(rc.ret, errToStr(rc.ret)))
-            if ctr == 2:
-                exit(1)
-            ctr += 1
         except KeyboardInterrupt:
             break
         total_samps += buff_len
