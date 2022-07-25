@@ -550,7 +550,7 @@ int SoapySidekiq::readStream(SoapySDR::Stream *stream,
         {
              *dbuff_ptr++ = (float) (source[short_ctr] / 2048.0f);
              *dbuff_ptr++ = (float) (source[short_ctr+1] / 2048.0f); 
-#define debug3             
+//#define debug3             
 #ifdef debug3             
              if (i < 2)
              {
@@ -604,7 +604,6 @@ int SoapySidekiq::writeStream(SoapySDR::Stream *stream,
   int status = 0;
   uint32_t errors=0;
 
-  SoapySDR_logf(SOAPY_SDR_TRACE, "writeStream");
   if (stream != TX_STREAM) {
     return SOAPY_SDR_NOT_SUPPORTED;
   }
