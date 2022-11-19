@@ -90,7 +90,7 @@ void SoapySidekiq::rx_receive_operation(void) {
       uint32_t num_samples = (len - SKIQ_RX_HEADER_SIZE_IN_BYTES) / sizeof(int16_t);
 
       //  buffer space required
-      uint32_t space_req = num_samples * elementsPerSample * shortsPerWord;
+      uint32_t space_req = num_samples * shortsPerWord;
 
       //  buf mutex
       {
@@ -320,7 +320,7 @@ int SoapySidekiq::readStream(SoapySDR::Stream *stream,
   if (useShort) {
     std::memcpy(buff0, _currentBuff, returnedElems * elementsPerSample * sizeof(int16_t));
   } else {
-    std::memcpy(buff0, (float *) _currentBuff, returnedElems * 2 * sizeof(float));
+    std::memcpy(buff0, (float *) _currentBuff, returnedElems * elementsPerSample * sizeof(float));
   }
 
   //  bump variables for next call into readStream
@@ -441,7 +441,7 @@ int SoapySidekiq::acquireReadBuffer(SoapySDR::Stream *stream,
   if (_buf_count == 0) {
     _buf_cond.wait_for(lock, std::chrono::microseconds(timeoutUs));
     if (_buf_count == 0) {
-      SoapySDR_logf(SOAPY_SDR_WARNING, "Read Timeout occured after %d ms", timeoutUs);
+      SoapySDR_logf(SOAPY_SDR_WARNING, "Read Timeout occured after %d us", timeoutUs);
       return SOAPY_SDR_TIMEOUT;
     }
   }
