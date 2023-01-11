@@ -21,7 +21,7 @@ pip install matplotlib
 
 
 
-echo "cloning SoapySDr"
+echo "cloning SoapySDR"
 git clone https://github.com/pothosware/SoapySDR.git
 cd SoapySDR
 git checkout master

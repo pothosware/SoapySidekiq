@@ -52,19 +52,27 @@ def read_gps(ser):
 
 
 def handler(signum, frame):
-    global running 
+    global running, sdr, rx_stream 
 
-    print("ending...")
+    print("...ending...")
     running = False
+
     # Stop streaming
     sdr.deactivateStream(rx_stream)
     sdr.closeStream(rx_stream)
+
     exit(1)
 
-def main(rx_chan, fs, bw, sfreq, stfreq, port, looptime):
+def main(cardno, rx_chan, fs, bw, sfreq, stfreq, port, looptime):
+    global running, sdr, rx_stream
+
     # Figure out how many times to loop to get one sample across the frequency range
-    loops = int((stfreq - sfreq) / bw)
-    print(loops)
+    diff = stfreq - sfreq
+    if (diff < bw):
+        loops = 1
+    else:
+        loops = int(diff / bw)
+    print("Number of BW searches to scan the whole freq range: ", loops, "\n")
 
     ############################################################################################
     # Settings
@@ -76,20 +84,24 @@ def main(rx_chan, fs, bw, sfreq, stfreq, port, looptime):
     running = True
 
     # Data transfer settings
-    N = 16384               # Number of complex samples per transfer
+    N = 65536               # Number of complex samples per transfer
     use_agc = False          # Use or don't use the AGC
     timeout_us = int(10e6)
     rx_bits = 12
     
     if (port == None):
-        header = "Time(UTC), Peak Frequency (MHz), Peak Power (dBm)\n"
+        header = "Time(UTC), Peak Frequency, Peak Power (dBm)\n"
     else:
-        header = "Time(UTC), GPS Sat Lock, Latitude, Longitude, Peak Frequency (MHz), Peak Power (dBm)\n"
+        header = "Time(UTC), GPS Sat Lock, Latitude, Longitude, Peak Frequency, Peak Power (dBm)\n"
 
 
     signal.signal(signal.SIGINT, handler)
 
-    sdr = SoapySDR.Device()
+    args = dict(card = cardno)
+    args = dict(serial = '8N55')
+    sdr = SoapySDR.Device(args)
+
+    SoapySDR.setLogLevel(SOAPY_SDR_ERROR)
 
     # Create data buffer and start streaming samples to it
     rx_buff = np.empty((loops,2 * N), np.int16)                 # Create memory buffer for data stream
@@ -102,7 +114,7 @@ def main(rx_chan, fs, bw, sfreq, stfreq, port, looptime):
     out = "Bandwidth, "+ "{:10.0f}".format(bw) + "\n"
 
     f.write(out)
-    out = "Start Freq, " + "{:10.0f}".format(sfreq) + "\n\n"
+    out = "Start Freq, " + "{:10.0f}".format(sfreq) + "\n"
     f.write(out)
     out = "Stop Freq, " + "{:10.0f}".format(stfreq) + "\n\n"
 
@@ -112,7 +124,6 @@ def main(rx_chan, fs, bw, sfreq, stfreq, port, looptime):
     ############################################################################################
     # Receive Signal
     ############################################################################################
-    SoapySDR.setLogLevel(SOAPY_SDR_ERROR)
 
     sdr.setSampleRate(SOAPY_SDR_RX, rx_chan, fs)            # Set sample rate
     sdr.setBandwidth(SOAPY_SDR_RX, rx_chan, bw)             # Set sample rate
@@ -120,17 +131,15 @@ def main(rx_chan, fs, bw, sfreq, stfreq, port, looptime):
 
     rx_stream = sdr.setupStream(SOAPY_SDR_RX, SOAPY_SDR_CS16, [rx_chan])  # Setup data stream
 
-
     while running:
-
         max_index = 0
         max_power = -150
+
         curFreq = (sfreq + (bw/2))
 
         # Read the samples from the data buffer
         for i in range(loops):
-
-            print("reading stream", i, N)
+            #print("reading stream", i, curFreq)
             sdr.setFrequency(SOAPY_SDR_RX, rx_chan, curFreq)           # Tune the LO
 
             sdr.activateStream(rx_stream)  # this turns the radio on
@@ -160,13 +169,12 @@ def main(rx_chan, fs, bw, sfreq, stfreq, port, looptime):
             if maxElement[i] > max_power:
                 max_index = i
                 max_power = maxElement[i]
+#                print(peak_freq[i], maxElement[i])
 
-            print(peak_freq[i], maxElement[i])
+#            print("peak freq", peak_freq[i], "maxElement", maxElement[i])
             curFreq += bw
 
-
-        print(max_index, max_power)
-
+        
         now =    datetime.datetime.now().strftime("%d-%b-%Y (%H:%M:%S)")
         print(now)
  
@@ -175,13 +183,13 @@ def main(rx_chan, fs, bw, sfreq, stfreq, port, looptime):
             print("gps lock:", fix, "latitude:", lat, "longitude:", lon)
 
         print('Max Power (dBm): ', "{:.0f}".format(maxElement[max_index]))
-        print('at Freq (MHz):', "{:10.4f}".format(peak_freq[max_index]))
+        print('at Freq (MHz):', "{:10.3f}".format(peak_freq[max_index]))
       
        
         if (port == None):
-            row = now + ', ' + "{:10.4f}".format(peak_freq[max_index]) + ', ' + "{:.0f}".format(maxElement[max_index]) + ' \n'
+            row = now + ', ' + "{:10.0f}".format((peak_freq[max_index] * 1000000)) + ', ' + "{:.0f}".format(maxElement[max_index]) + ' \n'
         else:
-            row = now + ', ' + fix + ', '  + lat + ', '  + lon + ', '  + "{:10.4f}".format(peak_freq[max_index]) + ', ' + "{:.0f}".format(maxElement[max_index]) + ' \n'
+            row = now + ', ' + fix + ', '  + lat + ', '  + lon + ', '  + "{:10.0f}".format((peak_freq[max_index] * 1000000)) + ', ' + "{:.0f}".format(maxElement[max_index]) + ' \n'
         print("")
         f.write(row)
         time.sleep(looptime)
@@ -192,12 +200,14 @@ def parse_command_line_arguments():
     help_formatter = argparse.ArgumentDefaultsHelpFormatter
     parser = argparse.ArgumentParser(description='scan for peaks, build a csv file ',
                                      formatter_class=help_formatter)
+    parser.add_argument('-c', required=False, dest='card',
+                        default='1', help=' Card')
     parser.add_argument('-chan', type=int, required=False, dest='chan',
                         default=0, help=' Channel')
     parser.add_argument('-s', type=float, required=False, dest='fs',
-                        default=20e6, help='Sample Rate')
+                        default=60e6, help='Sample Rate')
     parser.add_argument('-bw', type=float, required=False, dest='bw',
-                        default=20e6, help='Bandwidth')
+                        default=50e6, help='Bandwidth')
     parser.add_argument('-sf', type=float, required=False, dest='sfreq',
                         default=100e6, help='Starting Frequency')
     parser.add_argument('-stf', type=float, required=False, dest='stfreq',
@@ -211,10 +221,16 @@ def parse_command_line_arguments():
 
 if __name__ == '__main__':
 
-    PORT = "/dev/ttymxc0"
+    PORT = "/dev/ttySKIQ_UART1"
     BAUD = 9600
 
     pars = parse_command_line_arguments()
-    print(pars.chan, pars.fs, pars.bw, pars.sfreq, pars.stfreq, pars.port, pars.looptime)
-    main(pars.chan, pars.fs, pars.bw, pars.sfreq, pars.stfreq, pars.port, pars.looptime)
 
+    print("card (-c)\t\t:", pars.card, "\t\t\tchannel (-chan)\t\t:", pars.chan) 
+    print("sample rate (-s)\t:", pars.fs/1000000, "M","\t\tbandwidth (-bw)\t\t:", pars.bw/1000000, "M")
+    print("start freq (-sf)\t:", pars.sfreq/1000000, "M\t\tstop freq (-stf)\t:", pars.stfreq/1000000, "M")
+    print("UART port (-p)\t\t:", pars.port, "\ttime between tests (-t)\t:", pars.looptime, "sec\n")
+
+    main(pars.card, pars.chan, pars.fs, pars.bw, pars.sfreq, pars.stfreq, pars.port, pars.looptime)
+
+    f.close()

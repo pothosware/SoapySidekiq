@@ -62,9 +62,13 @@ SoapySidekiq::SoapySidekiq(const SoapySDR::Kwargs &args) {
 }
 
 SoapySidekiq::~SoapySidekiq(void) {
+
+  
+  SoapySDR_logf(SOAPY_SDR_INFO, "In destructor", card);
   if (skiq_exit() != 0) {
     SoapySDR_logf(SOAPY_SDR_ERROR, "Failure: skiq_exit", card);
   }
+  SoapySDR_logf(SOAPY_SDR_INFO, "leaving destructor", card);
 }
 
 /*******************************************************************
