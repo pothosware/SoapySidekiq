@@ -100,12 +100,6 @@ void SoapySidekiq::rx_receive_operation(void) {
   uint64_t overload = 0;
   skiq_rx_hdl_t rcvd_hdl;
 
-  // Make the skiq_rcv blocking
-  status = skiq_set_rx_transfer_timeout(card, RX_TRANSFER_WAIT_FOREVER);
-  if (status != 0)
-  {
-    SoapySDR_logf(SOAPY_SDR_ERROR, "Failure: skiq_set_rx_transfer_timeout (card %d) status %d", card, status);
-  }
   //  loop until stream is deactivated
   while (rx_running) {
     //  check for overflow
@@ -117,7 +111,7 @@ void SoapySidekiq::rx_receive_operation(void) {
       p_rx_block_index = 0;
     }
     else {
-      /*  blocking skiq_receive 
+      /*  
        *  put the block into a ring buffer so readStream can read it out at 
        *  a different pace */ 
       status = skiq_receive(card, &rcvd_hdl, &tmp_p_rx_block, &len); 
@@ -157,8 +151,11 @@ void SoapySidekiq::rx_receive_operation(void) {
         }
       }
       else {
-        SoapySDR_logf(SOAPY_SDR_FATAL, "Failure: skiq_receive (card %d) status %d", card, status);
-        throw std::runtime_error("skiq_receive error");
+        if (status != -1)
+        {
+            SoapySDR_logf(SOAPY_SDR_FATAL, "Failure: skiq_receive (card %d) status %d", card, status);
+            throw std::runtime_error("skiq_receive error");
+        }
       }
     }
   }
