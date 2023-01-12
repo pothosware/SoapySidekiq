@@ -17,8 +17,7 @@ sudo apt-get install -y python3-dev python3-pip
 
 pip install numpy
 
-pip install matplotlib
-
+pip install pynmea
 
 
 echo "cloning SoapySDR"
