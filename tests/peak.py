@@ -27,13 +27,14 @@ def main(rx_chan, fs, bw, freq, gain, poll_time):
     use_agc = False          # Use or don't use the AGC
     timeout_us = int(10e6)
     rx_bits = 12
-    lo_freq = freq + (bw/2)
+    lo_freq = freq + (fs/2)
 
     header = 'Time, Peak Frequency MHz, Peak Power dB \n'
 
     signal.signal(signal.SIGINT, handler)
 
-    sdr = SoapySDR.Device()
+    args = dict(serial = '8N55')
+    sdr = SoapySDR.Device(args)
 
     # Create data buffer and start streaming samples to it
     rx_buff = np.empty(2 * N, np.int16)                 # Create memory buffer for data stream
@@ -114,6 +115,7 @@ def main(rx_chan, fs, bw, freq, gain, poll_time):
         # Take the fourier transform of the signal and perform FFT Shift
         S = np.fft.fftshift(np.fft.fft(s, N) / N)
         S1 = 20*np.log10(np.abs(S))
+        print(S1)
 
         # Get the maximum element from a Numpy array
         maxElement = np.amax(S1)
@@ -121,6 +123,10 @@ def main(rx_chan, fs, bw, freq, gain, poll_time):
         result = np.where(S1 == np.amax(S1))
 
         f_peak = (lo_freq + (np.arange(0, fs, fs/N) - (fs/2) + (fs/N))) 
+
+        print(f_peak)
+
+
         peak_freq = f_peak[result[0]]
 
         now =    datetime.datetime.now().strftime("%d-%b-%Y (%H:%M:%S.%f)")
