@@ -47,6 +47,8 @@ make
 echo "Installing SoapySidekiq"
 sudo make install
 
+sudo ldconfig
+
 cd ../
 
 export LD_LIBRARY_PATH=/usr/lib/epiq:$LD_LIBRARY_PATH

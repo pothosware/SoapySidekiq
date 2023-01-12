@@ -100,6 +100,12 @@ void SoapySidekiq::rx_receive_operation(void) {
   uint64_t overload = 0;
   skiq_rx_hdl_t rcvd_hdl;
 
+  // Make the skiq_rcv blocking
+  status = skiq_set_rx_transfer_timeout(card, RX_TRANSFER_WAIT_FOREVER);
+  if (status != 0)
+  {
+    SoapySDR_logf(SOAPY_SDR_ERROR, "Failure: skiq_set_rx_transfer_timeout (card %d) status %d", card, status);
+  }
   //  loop until stream is deactivated
   while (rx_running) {
     //  check for overflow
