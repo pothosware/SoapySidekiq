@@ -27,14 +27,11 @@ rx_bits = 12
 ############################################################################################
 
 #if no args, then the code will find the first device available
-sdr = SoapySDR.Device() 
 SoapySDR.setLogLevel(SOAPY_SDR_TRACE)
 
 #if you want to find a card by card number then
-"""
 args = dict(card = '1')
 sdr = SoapySDR.Device(args) 
-"""
 
 #if you want to find a card by serial number then
 """
@@ -43,6 +40,7 @@ sdr = SoapySDR.Device(args)
 """
 
 
+#sdr = SoapySDR.Device() 
 
 sdr.setSampleRate(SOAPY_SDR_RX, rx_chan, fs)          # Set sample rate
 sdr.setBandwidth(SOAPY_SDR_RX, rx_chan, fs)          # Set sample rate
@@ -69,7 +67,8 @@ sdr.closeStream(rx_stream)
 # Plot Signal
 ############################################################################################
 # Convert interleaved shorts (received signal) to numpy.complex64 normalized between [-1, 1]
-s0 = rx_buff.astype(float) / np.power(2.0, rx_bits-1)
+#s0 = rx_buff.astype(float) / np.power(2.0, rx_bits-1)
+s0 = rx_buff.astype(np.int16) / np.power(2.0, rx_bits-1)
 s = (s0[1::2] + 1j*s0[::2])
 
 
@@ -79,7 +78,7 @@ S = np.fft.fftshift(np.fft.fft(s, N) / N)
 p = 20*np.log10((np.abs(S)))
 f_mhz = (freq + (np.arange(0, fs, fs/N) - (fs/2) + (fs/N))) / 1e6
 
-print(np.c_[f_mhz, p])
+#print(np.c_[f_mhz, p])
 print(p.max())
 
 # Time Domain Plot

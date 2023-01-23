@@ -9,6 +9,7 @@ SoapySidekiq::SoapySidekiq(const SoapySDR::Kwargs &args) {
   int status = 0;
 
 //  SoapySDR::setLogLevel(SOAPY_SDR_TRACE);
+
   //  rx defaults
   rx_sample_rate = 2048000;
   rx_bandwidth = 2048000;
@@ -58,6 +59,8 @@ SoapySidekiq::SoapySidekiq(const SoapySDR::Kwargs &args) {
   if (status != 0) {
     SoapySDR_logf(SOAPY_SDR_ERROR, "Failure: setting iq order (card %d), status %d", card, status);
   }
+  SoapySDR_logf(SOAPY_SDR_DEBUG, "Setting iq mode");
+
   rx_block_size_in_words = 0;
 }
 

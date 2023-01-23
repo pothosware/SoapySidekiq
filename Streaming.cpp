@@ -215,16 +215,13 @@ SoapySDR::Stream *SoapySidekiq::setupStream(const int direction,
 
   rx_block_size_in_words = rx_block_size_in_bytes / 4;
 
-  //  check the format only support CS16 for now
   if (format == "CS16") {
     useShort = true; 
     SoapySDR_log(SOAPY_SDR_INFO, "Using format CS16\n");
 
-/*
   } else if (format == "CF32") {
     useShort = false;
     SoapySDR_log(SOAPY_SDR_INFO, "Using format CF32\n");
-    */
   } else {
     throw std::runtime_error(
         "setupStream invalid format '" + format
@@ -281,7 +278,8 @@ size_t SoapySidekiq::getStreamMTU(SoapySDR::Stream *stream) const {
   SoapySDR_logf(SOAPY_SDR_TRACE, "getStremMTU");
 
   if (stream == RX_STREAM) {
-    return rx_block_size_in_words - SKIQ_RX_HEADER_SIZE_IN_WORDS;
+//    return (DEFAULT_NUM_BUFFERS * (rx_block_size_in_words - SKIQ_RX_HEADER_SIZE_IN_WORDS));
+    return (2 * (rx_block_size_in_words - SKIQ_RX_HEADER_SIZE_IN_WORDS));
   }
   else if (stream == TX_STREAM){
     return DEFAULT_TX_BUFFER_LENGTH;
@@ -425,15 +423,24 @@ int SoapySidekiq::readStream(SoapySDR::Stream *stream,
   uint32_t words_left_in_block = rx_payload_size_in_words - (p_rx_block_index / 4) ;
   char *ringbuffer_ptr = (char *)(((char *)p_rx_block[rxReadIndex]->data) + p_rx_block_index);
 
+
   // determine if we have more words in the ring buffer block than we need (or equal) 
   while (numElemsLeft >= words_left_in_block) 
   {
 //#define debug
 #ifdef debug
+    char *last_buff_ptr = buff_ptr; 
+    char *last_ringbuffer_ptr = ringbuffer_ptr;
     SoapySDR_logf(SOAPY_SDR_DEBUG, "1 p_rx_block_index %d, numElemsLeft %d, words_left_in_block %d", 
                                     p_rx_block_index, numElemsLeft, words_left_in_block);
     SoapySDR_logf(SOAPY_SDR_DEBUG, "rxReadIndex %d, rxWriteIndex %d", rxReadIndex, rxWriteIndex);
     SoapySDR_logf(SOAPY_SDR_DEBUG, "buff_ptr %p, ringbuffer_ptr %p", buff_ptr , ringbuffer_ptr);
+    SoapySDR_logf(SOAPY_SDR_DEBUG, "size of float %d buff_ptr delta %ld, ringbuffer_ptr %ld", 
+            sizeof(float),  buff_ptr - last_buff_ptr , ringbuffer_ptr - last_ringbuffer_ptr);
+
+    last_ringbuffer_ptr = ringbuffer_ptr;
+    last_buff_ptr = buff_ptr;
+
 //    SoapySDR_logf(SOAPY_SDR_DEBUG, "ringbuffer %p, ringbuffer_ptr %p", p_rx_block[rxReadIndex]->data , ringbuffer_ptr);
 //    SoapySDR_logf(SOAPY_SDR_DEBUG, "rx_payload_size_in_words, %d", rx_payload_size_in_words);
 
@@ -459,8 +466,8 @@ int SoapySidekiq::readStream(SoapySDR::Stream *stream,
         int short_ctr = 0;
         for (uint32_t i=0; i < words_left_in_block; i++)
         {
-             *dbuff_ptr++ = (float) source[short_ctr] / 2048.0f;
              *dbuff_ptr++ = (float) source[short_ctr+1] / 2048.0f; 
+             *dbuff_ptr++ = (float) source[short_ctr] / 2048.0f;
 #ifdef debug3             
              if (i < 1)
              {
@@ -473,6 +480,8 @@ int SoapySidekiq::readStream(SoapySDR::Stream *stream,
 #endif
              short_ctr +=2;
         }
+
+        buff_ptr = (char *)dbuff_ptr;
     }
 
 
@@ -501,7 +510,11 @@ int SoapySidekiq::readStream(SoapySDR::Stream *stream,
     printf("done neg\n");
 #endif
 
-    buff_ptr = buff_ptr + bytes_left_in_block;
+    if (useShort == true)
+    {
+        buff_ptr = buff_ptr + bytes_left_in_block;
+    }
+
     numElemsLeft -= words_left_in_block;
 
     // move to the next buffer in the ring
