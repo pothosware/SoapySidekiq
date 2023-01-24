@@ -16,13 +16,9 @@ from SoapySDR import *
 # Data transfer settings
 NUM_BUFF = 10
 rx_chan = 0             # RX1 = 0, RX2 = 1
-N = 16384               # Number of complex samples per transfer
-#N = 1018 + 100
-#N = (1018 * 100) + 100
-#N = 500
-fs = 10e6            # Radio sample Rate
+fs = 20e6            # Radio sample Rate
 freq = 100e6            # LO tuning frequency in Hz
-use_agc = False          # Use or don't use the AGC
+use_agc = True
 timeout_us = int(10e6)
 rx_resolution = 12
 max_data = (1 << (rx_resolution -1))-1
@@ -43,7 +39,7 @@ print("read counter", setting)
 
 sdr.setSampleRate(SOAPY_SDR_RX, rx_chan, fs)          # Set sample rate
 sdr.setBandwidth(SOAPY_SDR_RX, rx_chan, fs)          # Set sample rate
-#sdr.setGainMode(SOAPY_SDR_RX, rx_chan, use_agc)       # Set the gain mode
+sdr.setGainMode(SOAPY_SDR_RX, rx_chan, use_agc)       # Set the gain mode
 sdr.setFrequency(SOAPY_SDR_RX, rx_chan, freq)         # Tune the LO
 
 # Create data buffer and start streaming samples to it

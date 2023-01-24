@@ -5,19 +5,23 @@
 std::vector<SoapySDR::Kwargs> SoapySidekiq::sidekiq_devices;
 bool SoapySidekiq::rx_running;
 
-SoapySidekiq::SoapySidekiq(const SoapySDR::Kwargs &args) {
+// Constructor
+SoapySidekiq::SoapySidekiq(const SoapySDR::Kwargs &args) 
+{
   int status = 0;
 
-//  SoapySDR::setLogLevel(SOAPY_SDR_TRACE);
+/* We need to set some default parameters in case the user does not */
+
+  SoapySDR::setLogLevel(SOAPY_SDR_TRACE);
 
   //  rx defaults
   rx_sample_rate = 2048000;
-  rx_bandwidth = 2048000;
+  rx_bandwidth = (uint32_t) (rx_sample_rate * 0.8);
   rx_center_frequency = 100000000;
 
   //  tx defaults
   tx_sample_rate = 2048000;
-  tx_bandwidth = 2048000;
+  tx_bandwidth = (uint32_t) (tx_sample_rate * 0.8);
   tx_center_frequency = 100000000;
 
   useShort = true;
@@ -85,6 +89,7 @@ std::string SoapySidekiq::getDriverKey(void) const {
 
 std::string SoapySidekiq::getHardwareKey(void) const {
   SoapySDR_logf(SOAPY_SDR_TRACE, "getHardwareKey");
+  //TODO query card name and return
   return "Sidekiq";
 }
 
@@ -93,6 +98,8 @@ SoapySDR::Kwargs SoapySidekiq::getHardwareInfo(void) const {
   //  this also gets printed in --probe
   SoapySDR::Kwargs args;
   SoapySDR_logf(SOAPY_SDR_TRACE, "getHardwareInfo");
+
+  //TODO add number of channels 
 
   args["origin"] = "https://github.com/pothosware/SoapySidekiq";
   args["card"] = std::to_string(card);
@@ -105,7 +112,47 @@ SoapySDR::Kwargs SoapySidekiq::getHardwareInfo(void) const {
  ******************************************************************/
 
 size_t SoapySidekiq::getNumChannels(const int dir) const {
+  SoapySDR_logf(SOAPY_SDR_TRACE, "getNumChannels");
+  //TODO query number of channels and return
   return 1;
+}
+
+/*******************************************************************
+ * Frontend corrections API
+ ******************************************************************/
+
+bool SoapySidekiq::hasDCOffsetMode(const int direction, const size_t channel) const {
+  SoapySDR_logf(SOAPY_SDR_TRACE, "hasDCOffsetMode");
+  return direction == SOAPY_SDR_RX;
+}
+
+void SoapySidekiq::setDCOffsetMode(const int direction, const size_t channel, const bool automatic) {
+  int status = 0;
+  SoapySDR_logf(SOAPY_SDR_TRACE, "setDCOffsetMode");
+
+  if (direction == SOAPY_SDR_RX) {
+    status = skiq_write_rx_dc_offset_corr(card, rx_hdl, automatic);
+    if (status != 0) {
+      SoapySDR_logf(SOAPY_SDR_ERROR, "Failure: skiq_write_rx_dc_offset_corr (card %d, enable %d), status %d", card, automatic, status);
+    }
+  }
+  SoapySDR_logf(SOAPY_SDR_DEBUG, "Setting DC Offest Correction to Enabled %d", automatic);
+}
+
+bool SoapySidekiq::getDCOffsetMode(const int direction, const size_t channel) const {
+  bool enable;
+  int status = 0;
+  SoapySDR_logf(SOAPY_SDR_TRACE, "getDCOffsetMode");
+
+  if (direction == SOAPY_SDR_RX) {
+    status = skiq_read_rx_dc_offset_corr(card, rx_hdl, &enable);
+    if (status != 0) {
+      SoapySDR_logf(SOAPY_SDR_ERROR, "Failure: skiq_read_rx_dc_offset_corr (card %d)", card);
+    }
+    return enable;
+  }
+
+  return SoapySDR::Device::getDCOffsetMode(direction, channel);
 }
 
 /*******************************************************************
@@ -128,52 +175,18 @@ std::string SoapySidekiq::getAntenna(const int direction, const size_t channel) 
 }
 
 /*******************************************************************
- * Frontend corrections API
- ******************************************************************/
-
-bool SoapySidekiq::hasDCOffsetMode(const int direction, const size_t channel) const {
-  return direction == SOAPY_SDR_RX;
-}
-
-void SoapySidekiq::setDCOffsetMode(const int direction, const size_t channel, const bool automatic) {
-  int status = 0;
-  SoapySDR_logf(SOAPY_SDR_TRACE, "setDCOffsetMode");
-
-  if (direction == SOAPY_SDR_RX) {
-    status = skiq_write_rx_dc_offset_corr(card, rx_hdl, automatic);
-    if (status != 0) {
-      SoapySDR_logf(SOAPY_SDR_ERROR, "Failure: skiq_write_rx_dc_offset_corr (card %d, enable %d), status %d", card, automatic, status);
-    }
-  }
-  SoapySDR_logf(SOAPY_SDR_DEBUG, "Setting DC Offest Correction to Enabled %d", automatic);
-}
-
-bool SoapySidekiq::getDCOffsetMode(const int direction, const size_t channel) const {
-  bool enable;
-  int status = 0;
-
-  if (direction == SOAPY_SDR_RX) {
-    status = skiq_read_rx_dc_offset_corr(card, rx_hdl, &enable);
-    if (status != 0) {
-      SoapySDR_logf(SOAPY_SDR_ERROR, "Failure: skiq_read_rx_dc_offset_corr (card %d)", card);
-    }
-    return enable;
-  }
-
-  return SoapySDR::Device::getDCOffsetMode(direction, channel);
-}
-
-/*******************************************************************
  * Gain API
  ******************************************************************/
 
 std::vector<std::string> SoapySidekiq::listGains(const int direction, const size_t channel) const {
+  SoapySDR_logf(SOAPY_SDR_TRACE, "listGains");
   //  list available gain elements,
   std::vector<std::string> results;
   return results;
 }
 
 bool SoapySidekiq::hasGainMode(const int direction, const size_t channel) const {
+  SoapySDR_logf(SOAPY_SDR_TRACE, "hasGainMode");
   return true;
 }
 
@@ -181,6 +194,7 @@ void SoapySidekiq::setGainMode(const int direction, const size_t channel, const 
   int status = 0;
 
   SoapySDR_logf(SOAPY_SDR_TRACE, "setGainMode");
+
   if (direction == SOAPY_SDR_RX) {
     SoapySDR_logf(SOAPY_SDR_DEBUG,
                   "Setting Sidekiq RX Gain Mode: %s",
@@ -195,6 +209,7 @@ void SoapySidekiq::setGainMode(const int direction, const size_t channel, const 
 
 bool SoapySidekiq::getGainMode(const int direction, const size_t channel) const {
   int status = 0;
+  SoapySDR_logf(SOAPY_SDR_TRACE, "getGainMode");
 
   if (direction == SOAPY_SDR_RX) {
     skiq_rx_gain_t p_gain_mode;
@@ -212,6 +227,7 @@ void SoapySidekiq::setGain(const int direction, const size_t channel, const doub
     int status;
 
   SoapySDR_logf(SOAPY_SDR_TRACE, "setGain");
+
   if (direction == SOAPY_SDR_RX) 
   {
     /* if gain mode is automatic, we should leave */ 
@@ -246,6 +262,8 @@ void SoapySidekiq::setGain(const int direction, const size_t channel, const doub
 
 double SoapySidekiq::getGain(const int direction, const size_t channel) const {
   int status = 0;
+
+  SoapySDR_logf(SOAPY_SDR_TRACE, "getGain");
 
   if (direction == SOAPY_SDR_RX) {
     uint8_t gain_index;
@@ -355,6 +373,7 @@ SoapySDR::RangeList SoapySidekiq::getFrequencyRange(const int direction,
                                                     const size_t channel,
                                                     const std::string &name) const {
   SoapySDR::RangeList results;
+  SoapySDR_log(SOAPY_SDR_TRACE, "getFrequencyRange");
   uint64_t max;
   uint64_t min;
   int status = 0;
@@ -381,6 +400,7 @@ SoapySDR::RangeList SoapySidekiq::getFrequencyRange(const int direction,
 
 SoapySDR::ArgInfoList SoapySidekiq::getFrequencyArgsInfo(const int direction, const size_t channel) const {
   SoapySDR::ArgInfoList freqArgs;
+  SoapySDR_log(SOAPY_SDR_TRACE, "getFrequencyArgsInfo");
 
 
   // TODO: frequency arguments
@@ -549,6 +569,7 @@ double SoapySidekiq::getBandwidth(const int direction, const size_t channel) con
 
 std::vector<double> SoapySidekiq::listBandwidths(const int direction, const size_t channel) const {
   std::vector<double> bandwidths;
+  SoapySDR_log(SOAPY_SDR_TRACE, "getBandwidth");
   bandwidths.push_back(200000);
   bandwidths.push_back(300000);
   bandwidths.push_back(600000);
