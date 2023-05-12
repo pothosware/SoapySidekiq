@@ -21,14 +21,15 @@ std::string SoapySidekiq::getNativeStreamFormat(const int    direction,
                                                 const size_t channel,
                                                 double &     fullScale) const
 {
-    fullScale = 32767;
-
     SoapySDR_logf(SOAPY_SDR_TRACE, "getNativeStreamFormat");
+
+    fullScale = this->max_value;
+
     return "CS16";
 }
 
 SoapySDR::ArgInfoList SoapySidekiq::getStreamArgsInfo(
-    const int direction, const size_t channel) const
+            const int direction, const size_t channel) const
 {
     SoapySDR::ArgInfoList streamArgs;
 
@@ -580,18 +581,18 @@ int SoapySidekiq::readStream(SoapySDR::Stream *stream, void *const *buffs,
             int short_ctr = 0;
             for (uint32_t i = 0; i < words_left_in_block; i++)
             {
-                *dbuff_ptr++ = (float)source[short_ctr + 1] / 2048.0f;
-                *dbuff_ptr++ = (float)source[short_ctr] / 2048.0f;
+                *dbuff_ptr++ = (float)source[short_ctr + 1] / this->max_value;
+                *dbuff_ptr++ = (float)source[short_ctr] / this->max_value;
 #ifdef debug3
                 if (i < 1)
                 {
 
                     printf("1 I read %d, real %f, calc_int %f\n",
                            source[short_ctr], *(dbuff_ptr - 2),
-                           (*(dbuff_ptr - 2) * 2048));
+                           (*(dbuff_ptr - 2) * this->max_value));
                     printf("1 Q read %d, real %f, calc_int %f\n\n",
                            source[short_ctr + 1], *(dbuff_ptr - 1),
-                           (*(dbuff_ptr - 1) * 2048));
+                           (*(dbuff_ptr - 1) * this->max_value));
                 }
 #endif
                 short_ctr += 2;
@@ -688,8 +689,8 @@ int SoapySidekiq::readStream(SoapySDR::Stream *stream, void *const *buffs,
             int short_ctr = 0;
             for (uint32_t i = 0; i < numElemsLeft; i++)
             {
-                *dbuff_ptr++ = (float)(source[short_ctr] / 2048.0f);
-                *dbuff_ptr++ = (float)(source[short_ctr + 1] / 2048.0f);
+                *dbuff_ptr++ = (float)(source[short_ctr] / this->max_value);
+                *dbuff_ptr++ = (float)(source[short_ctr + 1] / this->max_value);
 //#define debug3
 #ifdef debug3
                 if (i < 2)

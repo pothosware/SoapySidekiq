@@ -9,6 +9,7 @@ bool                          SoapySidekiq::rx_running;
 SoapySidekiq::SoapySidekiq(const SoapySDR::Kwargs &args)
 {
     int status = 0;
+    uint8_t channels = 0;
 
     /* We need to set some default parameters in case the user does not */
 
@@ -37,20 +38,24 @@ SoapySidekiq::SoapySidekiq(const SoapySDR::Kwargs &args)
     {
         try
         {
+
             card = std::stoi(args.at("card"));
+            serial = args.at("serial");
         }
         catch (const std::invalid_argument &)
         {
+            SoapySDR_logf(SOAPY_SDR_ERROR, "Requested card (%d), not found", std::stoi(args.at("card")));
         }
 
-        /* TODO do get_cards to verify this card exists */
-        SoapySDR_logf(
-            SOAPY_SDR_DEBUG,
-            "Found Sidekiq Device using device index parameter 'card' = %d",
-            card);
+        SoapySDR_logf( SOAPY_SDR_DEBUG, "Found Sidekiq Device 'card' = %d, 'serial' = %s", card, serial.c_str());
+    }
+    else
+    {
+        SoapySDR_logf(SOAPY_SDR_ERROR, "No cards found");
     }
 
-    //  Handle (TODO add to args)
+
+
     rx_hdl = skiq_rx_hdl_A1;
     tx_hdl = skiq_tx_hdl_A1;
 
@@ -77,6 +82,40 @@ SoapySidekiq::SoapySidekiq(const SoapySDR::Kwargs &args)
     SoapySDR_logf(SOAPY_SDR_DEBUG, "Setting iq mode");
 
     rx_block_size_in_words = 0;
+
+    status = skiq_read_num_rx_chans(card, &channels);
+    if (status != 0)
+    {
+        SoapySDR_logf(SOAPY_SDR_ERROR,
+                      "failure reading rx number of channels (card %d), status %d", card, status);
+    }
+    num_rx_channels = channels;
+
+
+    status = skiq_read_num_tx_chans(card, &channels);
+    if (status != 0)
+    {
+        SoapySDR_logf(SOAPY_SDR_ERROR,
+                      "failure reading tx number of channels (card %d), status %d", card, status);
+    }
+    num_tx_channels = channels;
+    uint8_t tmp_resolution = 0;
+
+    /* Every card can have a different iq resolution.  Some are 12 bits and some are 14 and some 16
+     * So to validate the data we need to know when to wrap the value
+     */
+    status = skiq_read_rx_iq_resolution( card, &tmp_resolution );
+    if (status != 0)
+    {
+        SoapySDR_logf(SOAPY_SDR_ERROR, "Error: failed to read iq_resolution %d (status = %d)", 
+                card, status);
+    }
+
+    this->resolution = tmp_resolution;
+    this->max_value = (double) ((1 << (tmp_resolution-1))-1);
+    SoapySDR_logf(SOAPY_SDR_DEBUG, "Info: resolution %d" " bits, max ADC value %d", 
+                  this->resolution, (uint64_t) this->max_value); 
+
 }
 
 SoapySidekiq::~SoapySidekiq(void)
@@ -102,9 +141,28 @@ std::string SoapySidekiq::getDriverKey(void) const
 
 std::string SoapySidekiq::getHardwareKey(void) const
 {
+    int status = 0;
+    skiq_param_t param;
+    std::string part_str = "none";
+    skiq_part_t part;
+
     SoapySDR_logf(SOAPY_SDR_TRACE, "getHardwareKey");
-    // TODO query card name and return
-    return "Sidekiq";
+    // query card name and return
+
+    status = skiq_read_parameters(card, &param);
+    if (status != 0)
+    {
+        SoapySDR_logf(SOAPY_SDR_ERROR,
+                      "Failure: card %d, skiq_read_parameters status is %d", 
+                      card, status);
+    }
+
+    part = param.card_param.part_type; 
+    part_str = skiq_part_string(part);
+
+    SoapySDR_logf(SOAPY_SDR_DEBUG, "Part type is %s", part_str.c_str());
+
+    return part_str;
 }
 
 SoapySDR::Kwargs SoapySidekiq::getHardwareInfo(void) const
@@ -114,10 +172,11 @@ SoapySDR::Kwargs SoapySidekiq::getHardwareInfo(void) const
     SoapySDR::Kwargs args;
     SoapySDR_logf(SOAPY_SDR_TRACE, "getHardwareInfo");
 
-    // TODO add number of channels
-
     args["origin"] = "https://github.com/pothosware/SoapySidekiq";
     args["card"]   = std::to_string(card);
+    args["serial"]   = serial;
+    args["rx_channels"]   = std::to_string(num_rx_channels);
+    args["tx_channels"]   = std::to_string(num_tx_channels);
 
     return args;
 }
@@ -128,9 +187,22 @@ SoapySDR::Kwargs SoapySidekiq::getHardwareInfo(void) const
 
 size_t SoapySidekiq::getNumChannels(const int dir) const
 {
-    SoapySDR_logf(SOAPY_SDR_TRACE, "getNumChannels");
-    // TODO query number of channels and return
-    return 1;
+    SoapySDR_logf(SOAPY_SDR_TRACE, "getNumChannels, direction = %d", dir);
+
+    if (dir == SOAPY_SDR_RX)
+    {
+        return num_rx_channels;
+    }
+    else if (dir == SOAPY_SDR_TX)
+    {
+        return num_tx_channels;
+    }
+    else
+    {
+        SoapySDR_logf(SOAPY_SDR_ERROR, "Failure getNumChannels called for an Invalid Direction %d", dir);
+    }
+
+    return -1;
 }
 
 /*******************************************************************
@@ -140,19 +212,53 @@ size_t SoapySidekiq::getNumChannels(const int dir) const
 bool SoapySidekiq::hasDCOffsetMode(const int    direction,
                                    const size_t channel) const
 {
-    SoapySDR_logf(SOAPY_SDR_TRACE, "hasDCOffsetMode");
-    return direction == SOAPY_SDR_RX;
+    int status = 0;
+    uint32_t mask = 0; 
+
+    SoapySDR_logf(SOAPY_SDR_TRACE, "hasDCOffsetMode direction = %d", direction);
+
+    
+    if (direction == SOAPY_SDR_RX)
+    {
+        skiq_rx_hdl_t hdl = static_cast<skiq_rx_hdl_t>(channel);
+        status = skiq_read_rx_cal_types_avail(card, hdl, &mask);
+        if (status != 0)
+        {
+            SoapySDR_logf(SOAPY_SDR_ERROR,
+                          "Failure: skiq_read_rx_rx_cal_types_avail (card %d, "
+                          "mask %d), status %d",
+                          card, mask, status);
+        }
+        
+        if ((mask & skiq_rx_cal_type_dc_offset)== skiq_rx_cal_type_dc_offset)
+        {
+            SoapySDR_logf(SOAPY_SDR_DEBUG, "Channel %d, has DC Offest Correction %d", channel, mask);
+            return true;
+        }
+        else
+        {
+            SoapySDR_logf(SOAPY_SDR_DEBUG, "Channel %d, does not have DC Offest Correction %d", channel, mask);
+            return false;
+        }
+    }
+    else
+    {
+        //TODO
+    }
+
+    return false;
 }
 
 void SoapySidekiq::setDCOffsetMode(const int direction, const size_t channel,
                                    const bool automatic)
 {
     int status = 0;
-    SoapySDR_logf(SOAPY_SDR_TRACE, "setDCOffsetMode");
+    SoapySDR_logf(SOAPY_SDR_TRACE, "setDCOffsetMode, direction = %d", direction);
 
     if (direction == SOAPY_SDR_RX)
     {
-        status = skiq_write_rx_dc_offset_corr(card, rx_hdl, automatic);
+        skiq_rx_hdl_t hdl = static_cast<skiq_rx_hdl_t>(channel);
+        status = skiq_write_rx_dc_offset_corr(card, hdl, automatic);
         if (status != 0)
         {
             SoapySDR_logf(SOAPY_SDR_ERROR,
@@ -160,31 +266,41 @@ void SoapySidekiq::setDCOffsetMode(const int direction, const size_t channel,
                           "enable %d), status %d",
                           card, automatic, status);
         }
+        SoapySDR_logf(SOAPY_SDR_DEBUG, "Setting DC Offest Correction to %d", automatic);
     }
-    SoapySDR_logf(SOAPY_SDR_DEBUG, "Setting DC Offest Correction to Enabled %d",
-                  automatic);
+    else
+    {
+        //TODO
+    }
 }
 
 bool SoapySidekiq::getDCOffsetMode(const int    direction,
                                    const size_t channel) const
 {
-    bool enable;
+    bool enable = false;
     int  status = 0;
     SoapySDR_logf(SOAPY_SDR_TRACE, "getDCOffsetMode");
 
     if (direction == SOAPY_SDR_RX)
     {
-        status = skiq_read_rx_dc_offset_corr(card, rx_hdl, &enable);
+        skiq_rx_hdl_t hdl = static_cast<skiq_rx_hdl_t>(channel);
+        status = skiq_read_rx_dc_offset_corr(card, hdl, &enable);
         if (status != 0)
         {
             SoapySDR_logf(SOAPY_SDR_ERROR,
-                          "Failure: skiq_read_rx_dc_offset_corr (card %d)",
-                          card);
+                          "Failure: skiq_read_rx_dc_offset_corr (card %d, "
+                          "enable %d), status %d",
+                          card, enable, status);
         }
-        return enable;
+        SoapySDR_logf(SOAPY_SDR_DEBUG, "Channel %d, get DC Offest Correction %d", channel, enable);
+    }
+    else
+    {
+        //TODO
     }
 
-    return SoapySDR::Device::getDCOffsetMode(direction, channel);
+    return enable;
+
 }
 
 /*******************************************************************
@@ -369,6 +485,8 @@ SoapySDR::Range SoapySidekiq::getGainRange(const int    direction,
                 card);
             return SoapySDR::Device::getGainRange(direction, channel);
         }
+
+        //TODO convert from gain index to dB
 
         return SoapySDR::Range(gain_index_min, gain_index_max);
     }
@@ -870,4 +988,60 @@ std::string SoapySidekiq::readSetting(const std::string &key) const
         SoapySDR_logf(SOAPY_SDR_WARNING, "Unknown setting '%s'", key.c_str());
     }
     return "";
+}
+
+/*******************************************************************
+ * Time API
+ ******************************************************************/
+
+std::vector<std::string> SoapySidekiq::listTimeSources(void) const
+{
+    std::vector<std::string> result;
+    SoapySDR_logf(SOAPY_SDR_TRACE, "listTimeSources");
+
+    result.push_back("System");
+    result.push_back("RF");
+
+    return result;
+}
+
+void SoapySidekiq::setTimeSource(const std::string &source)
+{
+    SoapySDR_logf(SOAPY_SDR_TRACE, "setTimeSource, source is %s", source.c_str());
+
+    timeSource = source;
+    return;
+}
+
+std::string SoapySidekiq::getTimeSource(void) const
+{
+    SoapySDR_logf(SOAPY_SDR_TRACE, "getTimeSource");
+    return timeSource;
+}
+
+bool SoapySidekiq::hasHardwareTime(const std::string &) const
+{
+    SoapySDR_logf(SOAPY_SDR_TRACE, "hasHardwareTime");
+    return true;
+}
+
+long long SoapySidekiq::getHardwareTime(const std::string &) const
+{
+    //TODO
+    SoapySDR_logf(SOAPY_SDR_TRACE, "getHardwareTime");
+    return 0;
+}
+
+void SoapySidekiq::setHardwareTime(const long long timeNs, const std::string &what)
+{
+    //TODO
+    SoapySDR_logf(SOAPY_SDR_TRACE, "setHardwareTime");
+    if (what == "CMD") this->setCommandTime(timeNs, what);
+}
+
+void SoapySidekiq::setCommandTime(const long long, const std::string &)
+{
+    //TODO
+    SoapySDR_logf(SOAPY_SDR_TRACE, "setCommandTime");
+    return;
 }
