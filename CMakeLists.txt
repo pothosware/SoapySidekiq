@@ -17,6 +17,7 @@ if (NOT Sidekiq_FOUND)
 endif ()
 message(STATUS "Sidekiq_INCLUDE_DIRS - ${Sidekiq_INCLUDE_DIRS}")
 message(STATUS "Sidekiq_LIBRARIES - ${Sidekiq_LIBRARIES}")
+message(STATUS "OTHER_LIBS - ${OTHER_LIBS}")
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 include_directories(${Sidekiq_INCLUDE_DIRS})

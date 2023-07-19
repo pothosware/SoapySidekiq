@@ -1,0 +1,154 @@
+#!/bin/python3
+
+import sys
+import time
+import numpy as np
+from matplotlib import pyplot as plt
+import SoapySDR
+print(SoapySDR, __file__)
+from SoapySDR import *
+
+"""
+############################################################################################
+# Settings
+############################################################################################
+# Data transfer settings
+NUM_BUFF = 10
+rx_chan = 0             # RX1 = 0, RX2 = 1
+fs = 20e6            # Radio sample Rate
+freq = 100e6            # LO tuning frequency in Hz
+use_agc = True
+timeout_us = int(10e6)
+rx_resolution = 12
+max_data = (1 << (rx_resolution -1))-1
+print(max_data)
+"""
+
+SoapySDR.setLogLevel(SOAPY_SDR_TRACE)
+MAX_DEVICES = 10
+# find all the devices in the system
+print("\t *****finding all devices******")
+devices = 0
+devInfo = [dict() for x in range(MAX_DEVICES)]
+for dev in SoapySDR.Device.enumerate(""):
+    devInfo[devices] = dev
+    devices += 1
+
+print("found", devices, "devices")
+
+# loop through all the devices using card number and get info
+print("\n\n\t *****get hardware info by card ******")
+for idx in range(devices):
+    card = dict(card = str(idx))
+    sdr = SoapySDR.Device(card) 
+    args = sdr.getHardwareInfo()
+    print("***** hardwareInfo *****\n",  args)
+    del sdr
+
+
+# loop through all the devices using serial number and get info
+print("\n\n\t *****get info by serial ******")
+for idx in range(devices):
+    serial = dict(serial = (devInfo[idx]["serial"]))
+    sdr = SoapySDR.Device(serial) 
+    rxchans = sdr.getNumChannels(SOAPY_SDR_RX)
+    txchans = sdr.getNumChannels(SOAPY_SDR_TX)
+
+    
+    print("\nSerial Number:", serial)
+    print("hardwareInfo: ", args)
+    print("getNumChannels RX:",  rxchans)
+    print("getNumChannels TX:",  txchans)
+    print("\n")
+    del sdr
+
+
+
+
+
+
+
+"""
+for i in range()
+#if you want to find a card by card number then
+"""
+"""
+args = dict(card = '1')
+sdr = SoapySDR.Device(args) 
+"""
+
+#if you want to find a card by serial number then
+"""
+args = dict(serial = '8N55')
+sdr = SoapySDR.Device(args) 
+"""
+"""
+#if you don't care 
+sdr = SoapySDR.Device() 
+
+
+sdr = SoapySDR.Device() 
+
+setting = sdr.readSetting("iq_swap")
+print("read iq_swap", setting)
+
+sdr.writeSetting("counter", "true")
+setting = sdr.readSetting("counter")
+print("read counter", setting)
+
+sdr.setSampleRate(SOAPY_SDR_RX, rx_chan, fs)          # Set sample rate
+sdr.setBandwidth(SOAPY_SDR_RX, rx_chan, fs)          # Set sample rate
+sdr.setGainMode(SOAPY_SDR_RX, rx_chan, use_agc)       # Set the gain mode
+sdr.setFrequency(SOAPY_SDR_RX, rx_chan, freq)         # Tune the LO
+
+# Create data buffer and start streaming samples to it
+rx_stream = sdr.setupStream(SOAPY_SDR_RX, SOAPY_SDR_CS16, [rx_chan])  # Setup data stream
+
+N = sdr.getStreamMTU(rx_stream)
+
+print("MTU", N)
+
+
+rx_buff = np.empty([NUM_BUFF, (2 * N)], np.int16)                 # Create memory buffer for data stream
+
+sdr.activateStream(rx_stream)  # this turns the radio on
+for idx1 in range(NUM_BUFF):
+    print("read block", idx1)
+
+    # Read the samples from the data buffer
+    sr = sdr.readStream(rx_stream, [rx_buff[idx1]], N, timeoutUs=timeout_us)
+
+    rc = sr.ret # number of samples read or the error code
+    assert rc == N, 'Error Reading Samples from Device (error code = %d)!' % rc
+
+sdr.deactivateStream(rx_stream)
+
+
+for i in range(NUM_BUFF):
+    print("analyze block", i)
+    print(rx_buff[i])
+    expected = np.int16(rx_buff[i][0])
+    #validate samples
+    for j in range(((2 * N) - 1)):
+        this_value = np.int16(rx_buff[i][j])
+
+        if (this_value != expected):
+            print(rx_buff[i])
+            print("bad value", j, "expected", expected, "value", this_value)
+
+            #error print the buffer around the error
+            for k in range(-5, 5):
+                print((j + k), " ", rx_buff[i][j+k])
+            break
+
+        expected = (this_value + 1)
+        if expected == (max_data + 1):
+            expected = -(max_data+1)
+
+    if j >= ((2 * N - 1) - 1):
+        print(" success")
+
+# Stop streaming
+sdr.closeStream(rx_stream)
+"""
+

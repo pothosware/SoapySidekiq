@@ -1,0 +1,101 @@
+#!/bin/python3
+
+import sys
+import numpy as np
+from matplotlib import pyplot as plt
+import SoapySDR
+print(SoapySDR, __file__)
+from SoapySDR import *
+
+np.set_printoptions(threshold=sys.maxsize)
+
+############################################################################################
+# Settings
+############################################################################################
+# Data transfer settings
+rx_chan = 0             # RX1 = 0, RX2 = 1
+N = 32768               # Number of complex samples per transfer
+N = 2048               # Number of complex samples per transfer
+fs = 20e6               # Radio sample Rate
+freq = 1000e6            # LO tuning frequency in Hz
+use_agc = False          # Use or don't use the AGC
+timeout_us = int(10e6)
+rx_bits = 12
+
+############################################################################################
+# Receive Signal
+############################################################################################
+
+#if no args, then the code will find the first device available
+SoapySDR.setLogLevel(SOAPY_SDR_TRACE)
+
+#if you want to find a card by card number then
+args = dict(card = '1')
+sdr = SoapySDR.Device(args) 
+
+#if you want to find a card by serial number then
+"""
+args = dict(serial = '8N55')
+sdr = SoapySDR.Device(args) 
+"""
+
+
+#sdr = SoapySDR.Device() 
+
+sdr.setSampleRate(SOAPY_SDR_RX, rx_chan, fs)          # Set sample rate
+sdr.setBandwidth(SOAPY_SDR_RX, rx_chan, fs)          # Set sample rate
+sdr.setGain(SOAPY_SDR_RX, rx_chan, 0)       # Set the gain mode
+sdr.setFrequency(SOAPY_SDR_RX, rx_chan, freq)         # Tune the LO
+
+# Create data buffer and start streaming samples to it
+rx_stream = sdr.setupStream(SOAPY_SDR_RX, SOAPY_SDR_CS16, [rx_chan])  # Setup data stream
+#rx_stream = sdr.setupStream(SOAPY_SDR_RX, SOAPY_SDR_CF32, [rx_chan])  # Setup data stream
+sdr.activateStream(rx_stream)  # this turns the radio on
+
+rx_buff = np.empty(2 * N, np.int16)                 # Create memory buffer for data stream
+#rx_buff = np.empty(2 * N, float)                 # Create memory buffer for data stream
+# Read the samples from the data buffer
+sr = sdr.readStream(rx_stream, [rx_buff], N, timeoutUs=timeout_us)
+rc = sr.ret # number of samples read or the error code
+assert rc == N, 'Error Reading Samples from Device (error code = %d)!' % rc
+
+# Stop streaming
+sdr.deactivateStream(rx_stream)
+sdr.closeStream(rx_stream)
+
+############################################################################################
+# Plot Signal
+############################################################################################
+# Convert interleaved shorts (received signal) to numpy.complex64 normalized between [-1, 1]
+#s0 = rx_buff.astype(float) / np.power(2.0, rx_bits-1)
+s0 = rx_buff.astype(np.int16) / np.power(2.0, rx_bits-1)
+s = (s0[1::2] + 1j*s0[::2])
+
+
+# Take the fourier transform of the signal and perform FFT Shift
+S = np.fft.fftshift(np.fft.fft(s, N) / N)
+
+p = 20*np.log10((np.abs(S)))
+f_mhz = (freq + (np.arange(0, fs, fs/N) - (fs/2) + (fs/N))) / 1e6
+
+#print(np.c_[f_mhz, p])
+print(p.max())
+
+# Time Domain Plot
+plt.figure(num=1, figsize=(10, 5), dpi=150)
+plt.subplot(211)
+t_us = np.arange(N) / fs / 1e-6
+plt.plot(t_us, s.real, 'k', label='I')
+plt.plot(t_us, s.imag, 'r', label='Q')
+plt.xlim(t_us[0], t_us[-1])
+plt.xlabel('Time (us)')
+plt.ylabel('Normalized Amplitude')
+
+# Frequency Domain Plot
+plt.subplot(212)
+plt.plot(f_mhz, p) 
+plt.xlim(f_mhz[0], f_mhz[-1])
+plt.ylim(-200, 0)
+plt.xlabel('Frequency (MHz)')
+plt.ylabel('Amplitude (dBFS)')
+plt.show()

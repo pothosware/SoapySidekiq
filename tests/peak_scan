@@ -1,0 +1,278 @@
+#!/bin/python3
+
+import sys
+import csv
+import time
+import signal
+import datetime
+import argparse
+import serial
+import pynmea2
+
+import numpy as np
+import SoapySDR
+from SoapySDR import *
+
+def read_gps(ser):
+    trying = True
+    fix = "no"
+    lat = "0";
+    lat_dir = ""
+    lon = "0"
+    lon_dir = ""
+    timestamp = ""
+
+    while(trying):
+        try:
+            line = ser.readline()
+            newline = str(line, 'utf-8', errors='ignore')
+            if "GGA" in newline:
+                data = pynmea2.parse(newline)
+                timestamp = data.timestamp
+                lat, lon, alt = data.latitude, data.longitude, data.altitude
+                lat_dir, lon_dir, num_sats = data.lat_dir, data.lon_dir, data.num_sats
+                gps_qual = data.gps_qual
+                if gps_qual != 0:
+                    fix = "yes"
+                    trying = False;
+                else:
+                    fix = "no"
+                    trying = False;
+
+        except serial.SerialException as e:
+            trying = False;
+
+        except serial.SerialTimeoutException as e:
+            trying = False;
+
+    ret_lat = "{:4.6}".format(lat) + " " +lat_dir
+    ret_lon = "{:4.6}".format(lon) + " " + lon_dir
+    return fix, ret_lat, ret_lon, str(timestamp) 
+
+
+def handler(signum, frame):
+    global running, sdr, rx_stream 
+
+    print("...ending...")
+    running = False
+
+    # Stop streaming
+    sdr.deactivateStream(rx_stream)
+    sdr.closeStream(rx_stream)
+
+    exit(1)
+
+def compute_mag_spectrum(x, samp_rate_hz, fft_len):
+    # bin frequencies
+    t_samp = 1./samp_rate_hz
+    bin_freq_hz = np.fft.fftfreq(fft_len, t_samp)
+
+    # get mag spectrum of windowed zero-padded input
+    window = np.hamming(len(x))
+#    print("window", window.sum(), "fftlen", fft_len)
+
+    x_zp = np.zeros((fft_len,), dtype=complex)
+    x_zp[:len(x)] = x * window
+    mag_spectrum = np.abs(np.fft.fft(x_zp, norm='ortho'))**2
+
+    # figure out scale factor (each factor is squared since applied to mag spectrum)
+    # so that 0 dBFS sinusoid will have mag spectrum peak at 0 dB
+    xlen_factor = len(x)
+    window_factor = 1./(window.sum()**2)
+    zp_factor = fft_len/len(x)
+    scale = xlen_factor * window_factor * zp_factor
+
+    return (np.fft.fftshift(bin_freq_hz), np.fft.fftshift(scale*mag_spectrum))
+
+def main(cardno, rx_chan, fs, bw, sfreq, stfreq, port, looptime):
+    global running, sdr, rx_stream
+
+    # Figure out how many times to loop to get one sample across the frequency range
+    diff = stfreq - sfreq
+
+    if diff < 0:
+        print("Error: start freq is bigger than stop freq")
+        exit(-1)
+
+    # we loop using the sample rate, which must be bigger than the bandwidth.  So there is 
+    # overlap between each loop so we don't lose signals between loops.
+    if (diff < bw):
+        loops = 1
+    else:
+        loops = int(diff / bw)
+
+    print("Number of BW searches to scan the whole freq range: ", loops, "\n")
+
+    ############################################################################################
+    # Settings
+    ############################################################################################
+    if (port != None):
+        print(port) 
+        ser = serial.Serial(port, BAUD, timeout=2.0)
+
+    running = True
+
+    # Data transfer settings
+    N = 65536               # Number of complex samples per transfer
+    use_agc = False          # Use or don't use the AGC
+    timeout_us = int(10e6)
+    rx_bits = 12
+    
+    if (port == None):
+        header = "Local Date/Time, Peak Frequency, Peak Power (dB FS)\n"
+    else:
+        header = "Local Date/Time, Time(UTC), GPS Sat Lock, Latitude, Longitude, Peak Frequency, Peak Power (dB FS)\n"
+
+
+    signal.signal(signal.SIGINT, handler)
+
+    args = dict(card = cardno)
+#    args = dict(serial = '8N55')
+    sdr = SoapySDR.Device(args)
+
+    SoapySDR.setLogLevel(SOAPY_SDR_ERROR)
+
+    # Create data buffer and start streaming samples to it
+    rx_buff = np.empty((loops,2 * N), np.int16)                 # Create memory buffer for data stream
+    peak_db = np.empty(loops)
+    peak_abs_freq_hz = np.empty(loops)
+
+    f = open('output.csv', 'w', encoding='UTF8') 
+    out = "Sample Rate, " + "{:10.0f}".format(fs) + "\n"
+    f.write(out)
+    out = "Bandwidth, "+ "{:10.0f}".format(bw) + "\n"
+
+    f.write(out)
+    out = "Start Freq, " + "{:10.0f}".format(sfreq) + "\n"
+    f.write(out)
+    out = "Stop Freq, " + "{:10.0f}".format(stfreq) + "\n\n"
+
+    f.write(out)
+    f.write(header)
+
+    ############################################################################################
+    # Receive Signal
+    ############################################################################################
+
+    sdr.setSampleRate(SOAPY_SDR_RX, rx_chan, fs)            # Set sample rate
+    sdr.setBandwidth(SOAPY_SDR_RX, rx_chan, bw)             # Set sample rate
+    sdr.setGain(SOAPY_SDR_RX, rx_chan, 0)                   # Set the gain mode
+
+    rx_stream = sdr.setupStream(SOAPY_SDR_RX, SOAPY_SDR_CS16, [rx_chan])  # Setup data stream
+
+    while running:
+        max_index = 0
+        max_power = -150
+
+        curFreq = sfreq + (bw/2)
+
+        # Read the samples from the data buffer
+        for i in range(loops):
+            #print("reading stream", i, curFreq)
+            sdr.setFrequency(SOAPY_SDR_RX, rx_chan, curFreq )           # Tune the LO
+
+            sdr.activateStream(rx_stream)  # this turns the radio on
+            sr = sdr.readStream(rx_stream, [rx_buff[i]], N, timeoutUs=timeout_us)
+            sdr.deactivateStream(rx_stream)  # this turns the radio off
+
+            rc = sr.ret # number of samples read or the error code
+            assert rc == N, 'Error Reading Samples from Device (error code = %d)!' % rc
+
+            # Convert interleaved shorts (received signal) to numpy.complex64 normalized between [-1, 1]
+            s0 = rx_buff[i].astype(np.int16) 
+            x = s0[1::2] + 1j*s0[0::2]
+
+            lo_freq = curFreq 
+            samp_rate = fs
+            n_bits_iq = rx_bits
+            fft_len = N
+
+            # read, scale, truncate IQ sequence
+            full_scale_mag = 2.**(n_bits_iq-1)       
+            x /= full_scale_mag
+            x = x[:fft_len]
+
+            # calc spectrum
+            bin_freq, bin_mag = compute_mag_spectrum(x, samp_rate, fft_len)
+            bin_mag_db = 10*np.log10(bin_mag)
+
+            # find top peak and plot
+            idx = np.argmax(bin_mag_db)
+            peak_db[i] = bin_mag_db[idx]
+            peak_freq_hz = bin_freq[idx]
+            peak_abs_freq_hz[i] = lo_freq + peak_freq_hz
+
+            if peak_db[i] > max_power:
+                max_index = i
+                max_power = peak_db[i]
+#                print(max_power, peak_abs_freq_hz[i])
+
+#            print(idx, "bin_freq", peak_freq_hz, "peak freq", peak_abs_freq_hz, "max_power", peak_db)
+
+            curFreq += bw
+
+        now =    datetime.datetime.now().strftime("%d-%b-%Y (%H:%M:%S)")
+        print("local date/time", now)
+ 
+        if (port != None):
+            fix, lat, lon, timestamp = read_gps(ser);
+            print("UTC Time", timestamp, "gps lock:", fix, "latitude:", lat, "longitude:", lon, )
+
+        print('Max Power (dBm): ', "{:.0f}".format(peak_db[max_index]))
+        print('at Freq (MHz):', "{:10.3f}".format(peak_abs_freq_hz[max_index] / 1e6))
+      
+       
+        if (port == None):
+            row = now + ', ' + "{:10.3f}".format((peak_abs_freq_hz[max_index] / 1e6)) + ', ' + "{:.0f}".format(peak_db[max_index]) + ' \n'
+        else:
+            row = now + ', ' + timestamp + ", " + fix + ', '  + lat + ', '  + lon + ', '  
+            row = row + "{:10.3f}".format(peak_abs_freq_hz[max_index] / 1e6) + ', ' + "{:.0f}".format(peak_db[max_index]) + ' \n'
+        print("")
+        f.write(row)
+        time.sleep(looptime)
+
+
+def parse_command_line_arguments():
+    """ Create command line options """
+    help_formatter = argparse.ArgumentDefaultsHelpFormatter
+    parser = argparse.ArgumentParser(description='scan for peaks, build a csv file ',
+                                     formatter_class=help_formatter)
+    parser.add_argument('-c', required=False, dest='card',
+                        default='0', help=' Card')
+    parser.add_argument('-chan', type=int, required=False, dest='chan',
+                        default=0, help=' Channel')
+    parser.add_argument('-s', type=float, required=False, dest='fs',
+                        default=20e6, help='Sample Rate')
+    parser.add_argument('-bw', type=float, required=False, dest='bw',
+                        default=18e6, help='Bandwidth')
+    parser.add_argument('-sf', type=float, required=False, dest='sfreq',
+                        default=1000e6, help='Starting Frequency')
+    parser.add_argument('-stf', type=float, required=False, dest='stfreq',
+                        default=2000e6, help='Stopping Frequency')
+    parser.add_argument('-p', required=False, dest='port',
+                        default=None, help='GPS Port')
+    parser.add_argument('-t', type=int, required=False, dest='looptime',
+                        default=3, help='Time between tests')
+    return parser.parse_args(sys.argv[1:])
+
+
+if __name__ == '__main__':
+
+    PORT = "/dev/ttySKIQ_UART1"
+    BAUD = 9600
+
+    pars = parse_command_line_arguments()
+
+    if (pars.fs <= pars.bw):
+        print("Warning: Bandwidth must be smaller than the sample rate, Setting bandwidth to 80% of sample rate.")
+
+        pars.bw = 0.8 * pars.fs
+
+    print("card (-c)\t\t:", pars.card, "\t\t\tchannel (-chan)\t\t:", pars.chan) 
+    print("sample rate (-s)\t:", pars.fs/1000000, "M","\t\tbandwidth (-bw)\t\t:", pars.bw/1000000, "M")
+    print("start freq (-sf)\t:", pars.sfreq/1000000, "M\t\tstop freq (-stf)\t:", pars.stfreq/1000000, "M")
+    print("UART port (-p)\t\t:", pars.port, "\ttime between tests (-t)\t:", pars.looptime, "sec\n")
+
+    main(pars.card, pars.chan, pars.fs, pars.bw, pars.sfreq, pars.stfreq, pars.port, pars.looptime)
+
+    f.close()
